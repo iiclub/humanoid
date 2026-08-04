@@ -1,0 +1,31 @@
+{
+  "name": "Humanoid Face",
+  "short_name": "Face",
+  "description": "The robot's talking head — eyes, voice and camera.",
+
+  "//": "display:fullscreen is the point of this file. Tapping the page can request fullscreen, but the browser may refuse it and it is lost on every reload. Added to the home screen with this manifest, the page launches with no address bar and no status bar at all — which is what a phone bolted into a robot's head needs.",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+
+  "orientation": "portrait",
+  "start_url": "/face",
+  "scope": "/",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+
+  "//icons": "Inline SVG data URIs so nothing has to be fetched — the robot's network has no internet and this project ships no binary assets.",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' fill='%23000'/%3E%3Cellipse cx='58' cy='96' rx='34' ry='24' fill='%23e02020'/%3E%3Cellipse cx='134' cy='96' rx='34' ry='24' fill='%23e02020'/%3E%3Ccircle cx='58' cy='96' r='14' fill='%231f6fd0'/%3E%3Ccircle cx='134' cy='96' r='14' fill='%231f6fd0'/%3E%3C/svg%3E",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%23000'/%3E%3Cellipse cx='155' cy='256' rx='90' ry='64' fill='%23e02020'/%3E%3Cellipse cx='357' cy='256' rx='90' ry='64' fill='%23e02020'/%3E%3Ccircle cx='155' cy='256' r='38' fill='%231f6fd0'/%3E%3Ccircle cx='357' cy='256' r='38' fill='%231f6fd0'/%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

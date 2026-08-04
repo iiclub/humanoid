@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#0b0e15" />
+  <title>Humanoid Control Simulator</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🤖</text></svg>" />
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">🤖</span>
+    <div>
+      <h1 id="robotName">Humanoid</h1>
+      <span class="sub" id="serverInfo">connecting…</span>
+    </div>
+  </div>
+
+  <div class="status-strip" id="statusStrip"></div>
+
+  <div class="top-actions">
+    <span class="rec-badge" id="recBadge" hidden></span>
+    <button class="btn ghost" id="btnHome" title="Send every joint back to its declared initial angle">⌂ Home</button>
+    <button class="btn danger" id="btnEstop">■ E-STOP</button>
+  </div>
+</header>
+
+<main class="layout">
+
+  <section class="panel view-panel">
+    <div class="panel-head">
+      <h2>3D view</h2>
+      <div class="panel-actions">
+        <button class="chip" id="btnSpin">auto-rotate</button>
+        <button class="chip" id="btnResetView">reset view</button>
+      </div>
+    </div>
+    <canvas id="view3d"></canvas>
+  </section>
+
+  <section class="panel stick-panel">
+    <div class="panel-head">
+      <h2>Schematic · joints &amp; pins</h2>
+      <span class="hint">circles = joints · label = NodeMCU pin + angle being sent</span>
+    </div>
+    <canvas id="stick"></canvas>
+  </section>
+
+  <section class="panel control-panel">
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-tab="arms">Arms</button>
+      <button class="tab" data-tab="head">Head</button>
+      <button class="tab" data-tab="drive">Drive</button>
+      <button class="tab" data-tab="motor">Motor</button>
+      <button class="tab" data-tab="record">Record</button>
+      <button class="tab" data-tab="nodes">Nodes</button>
+      <button class="tab" data-tab="setup">Setup</button>
+    </nav>
+
+    <div class="tab-body">
+
+      <!-- ARMS -->
+      <div class="tab-page active" data-page="arms">
+        <div class="pose-row" id="poseRow"></div>
+        <label class="switch">
+          <input type="checkbox" id="mirror" />
+          <span>Mirror right arm → left arm</span>
+        </label>
+        <div id="armControls"></div>
+      </div>
+
+      <!-- HEAD -->
+      <div class="tab-page" data-page="head">
+        <p class="hint">Drag the pad — X pans, Y tilts. Both servos live on the left-hand NodeMCU (D5 / D6).</p>
+        <div class="pad" id="headPad"><div class="pad-dot" id="headDot"></div><div class="pad-cross"></div></div>
+
+        <!-- Eyes. These drive the animated face on the phone (/face), not a
+             servo — the phone mirrors this state over the same WebSocket. -->
+        <h3 class="section-h">Eyes <span class="section-sub">— the phone face at <code>/face</code></span></h3>
+
+        <div class="btn-row">
+          <button class="btn" data-eye-look="-100">◀◀ Far left</button>
+          <button class="btn" data-eye-look="-50">◀ Left</button>
+          <button class="btn" data-eye-look="0">● Centre</button>
+          <button class="btn" data-eye-look="50">Right ▶</button>
+          <button class="btn" data-eye-look="100">Far right ▶▶</button>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn" id="btnEyeSwing">↔ Swing</button>
+          <button class="btn" data-eye-lids="closed">Close eyes</button>
+          <button class="btn" data-eye-lids="open">Open eyes</button>
+          <button class="btn" id="btnEyeAuto">Idle wander</button>
+          <button class="btn" id="btnEyeBlink">Blinking</button>
+        </div>
+
+        <div class="row">
+          <label for="eyeSpeed">Eye speed</label>
+          <input type="range" id="eyeSpeed" min="1" max="100" step="1" value="50">
+          <output id="eyeSpeedOut">50</output>
+        </div>
+        <p class="hint">
+          Speed drives both the swing and how fast the lids open and close.
+          <b>1</b> is a 4-second lid fall and a 14-second swing — slow enough to read as a machine
+          powering down; <b>100</b> snaps shut in 70 ms.
+        </p>
+        <div class="readout" id="eyeReadout">centre · lids open · idle wander</div>
+
+        <h3 class="section-h">Wake sequence <span class="section-sub">— head D6 + eyes, together</span></h3>
+        <p class="hint">
+          Walks the head servo on <b>D6</b> from <b>0° to 70°</b>, and as it passes the halfway
+          point (<b>35°</b>) the eyes start opening — the two overlap, which is what makes it read
+          as waking up rather than two separate movements. The lids are given exactly the time the
+          head has left, so both arrive together however long you set it to. Runs on the server,
+          so closing this tab will not abandon it half way. <b>E-STOP</b> halts it immediately.
+        </p>
+        <div class="row">
+          <label for="wakeSecs">Duration</label>
+          <input type="range" id="wakeSecs" min="2" max="90" step="1" value="20">
+          <output id="wakeSecsOut">20 s</output>
+        </div>
+        <div class="btn-row">
+          <button class="btn" id="btnWakeSeq">▶ Run wake sequence</button>
+          <button class="btn ghost" id="btnWakeStop">■ Stop</button>
+        </div>
+        <div id="headControls"></div>
+        <button class="btn ghost wide" id="btnHeadCenter">Center head</button>
+      </div>
+
+      <!-- DRIVE -->
+      <div class="tab-page" data-page="drive">
+        <div class="dpad">
+          <button class="btn drive" data-drive="forward" style="grid-area:up">▲</button>
+          <button class="btn drive" data-drive="left" style="grid-area:left">◀</button>
+          <button class="btn drive stop" data-drive="stop" style="grid-area:mid">■</button>
+          <button class="btn drive" data-drive="right" style="grid-area:right">▶</button>
+          <button class="btn drive" data-drive="reverse" style="grid-area:down">▼</button>
+        </div>
+        <div class="slider-row">
+          <label for="speed">Speed</label>
+          <input type="range" id="speed" min="0" max="1023" value="900" />
+          <output id="speedOut">900</output>
+        </div>
+        <p class="hint">Hold a button to drive, release to stop. Keyboard: W A S D / arrows, space = stop.</p>
+        <div class="pad joystick" id="drivePad"><div class="pad-dot" id="driveDot"></div><div class="pad-cross"></div></div>
+        <p class="hint">Thumb-stick: differential mix, released = stop. Firmware also stops on its own if commands go quiet.</p>
+        <div class="readout" id="driveReadout">L 0 · R 0</div>
+      </div>
+
+      <!-- MOTOR -->
+      <div class="tab-page" data-page="motor">
+        <p class="hint" id="motorPins">Aux motor on the right-hand NodeMCU.</p>
+        <div class="motor-pad">
+          <button class="btn motor" data-motor="up">
+            <span class="m-arrow">▲</span>
+            <span class="m-name">Up</span>
+            <span class="m-sub">clockwise</span>
+          </button>
+          <button class="btn motor" data-motor="down">
+            <span class="m-arrow">▼</span>
+            <span class="m-name">Down</span>
+            <span class="m-sub">anticlockwise</span>
+          </button>
+        </div>
+        <p class="hint">
+          Hold a button to turn, release to stop — the same hold-to-run rule as the drive pad.
+          It is an L298N driven by direction alone (no PWM), so the motor runs at full speed or
+          not at all. The firmware also stops it by itself if commands go quiet, and
+          <b>E-STOP</b> blocks it entirely.
+        </p>
+        <div class="readout" id="motorReadout">stopped</div>
+      </div>
+
+      <!-- RECORD -->
+      <div class="tab-page" data-page="record">
+        <div class="rec-status" id="recStatus">
+          <span class="rec-dot" id="recDot"></span>
+          <span id="recStateText">idle</span>
+          <span class="rec-meta" id="recMeta">0 frames</span>
+        </div>
+
+        <div class="btn-row rec-transport">
+          <button class="btn danger" id="btnRec">● Record</button>
+          <button class="btn" id="btnRecStop" disabled>■ Stop</button>
+          <button class="btn" id="btnPlay" disabled>► Play</button>
+          <button class="btn" id="btnPlayStop" disabled>■ Stop play</button>
+        </div>
+
+        <label class="switch">
+          <input type="checkbox" id="loopChk" />
+          <span>Loop playback (repeat forever)</span>
+        </label>
+
+        <p class="hint">
+          Press <b>Record</b>, then move the arms, head, or drive the base from any tab — every
+          command is captured with its timing. <b>Stop</b>, then <b>Play</b> to replay it, on loop
+          if you like. Playback runs on the server, so it keeps going even if you close this page.
+        </p>
+
+        <div class="save-row">
+          <input type="text" id="recName" placeholder="name this take…" maxlength="40" />
+          <button class="btn ghost" id="btnSaveRec">Save</button>
+        </div>
+
+        <h3 class="rec-h">Saved routines</h3>
+        <div id="savedList" class="saved-list"></div>
+      </div>
+
+      <!-- NODES -->
+      <div class="tab-page" data-page="nodes">
+        <div id="deviceList" class="device-list"></div>
+        <div class="btn-row">
+          <button class="btn ghost" id="btnAnnounce">Broadcast server IP</button>
+          <button class="btn ghost" id="btnResyncAll">Re-send pose to all</button>
+        </div>
+        <details class="help">
+          <summary>How a NodeMCU joins the network</summary>
+          <ol>
+            <li>Power it up. With no stored WiFi it starts an <b>access point</b> (e.g. <code>HUMANOID-RIGHT</code>, password <code>12345678</code>).</li>
+            <li>Join that AP from your phone/laptop, open <code>http://192.168.4.1</code>.</li>
+            <li>Pick your WiFi, type the password, and enter this laptop's IP (shown top-left) and port.</li>
+            <li>It reboots, joins your WiFi and POSTs its IP to <code>/api/register</code>; it then appears below.</li>
+            <li>If the WiFi disappears for more than ~15 s it drops back into access-point mode by itself.</li>
+          </ol>
+        </details>
+        <div class="log" id="log"></div>
+      </div>
+
+      <!-- SETUP -->
+      <div class="tab-page" data-page="setup">
+        <p class="hint">
+          <b>initial</b> is the home angle (0 or 180) — travel always starts there and runs to the opposite end.
+          <b>dir</b> flips a mirrored servo. <b>trim</b> corrects horn-spline offset. Changes save to
+          <code>config/setup.json</code> immediately.
+        </p>
+        <div id="setupTable" class="setup-table"></div>
+        <div class="btn-row">
+          <button class="btn ghost" id="btnDownloadSetup">Download setup.json</button>
+        </div>
+      </div>
+
+    </div>
+  </section>
+</main>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

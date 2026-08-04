@@ -1,0 +1,22 @@
+# TLS material for the /face route.
+#
+# certs/lan-key.pem is a PRIVATE KEY and certs/rootCA.pem identifies this
+# machine's local CA. Neither belongs in a public repository, and neither needs
+# to: `npm run cert` regenerates the pair in seconds for whatever IP the laptop
+# currently has, which is the only way it is ever correct anyway.
+certs/
+
+# Photographs taken by the robot, of whoever was standing in front of it.
+captures/
+
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# Saved record/play routines are per-robot calibration, not source.
+config/recordings.json
+
+.DS_Store
+*.swp
+.env
+.env.*

@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Humanoid · Face</title>
+  <!-- Add to Home screen with this and the page launches with no address bar
+       and no status bar — the only way to get reliable fullscreen on Android,
+       since a tap-requested fullscreen is refusable and is lost on reload. -->
+  <link rel="manifest" href="face.webmanifest">
+  <link rel="stylesheet" href="css/face.css">
+</head>
+<body>
+
+  <!-- The face is the whole page, open-eyed and blinking from the first frame.
+       It must never load with the lids shut: a black lid on a black background
+       is an invisible page. Tapping the wake dot only starts the audio, the
+       microphone and fullscreen — it does not make the eyes appear. -->
+  <main class="stage" id="stage">
+
+    <div class="face" id="face">
+
+      <div class="eye" id="eyeL">
+        <div class="ball">
+          <div class="iris">
+            <span class="fibers"></span>
+            <span class="pupil"></span>
+            <span class="hi hi1"></span>
+            <span class="hi hi2"></span>
+          </div>
+        </div>
+        <span class="shade"></span>
+        <span class="lid top"></span>
+        <span class="lid bot"></span>
+      </div>
+
+      <div class="eye" id="eyeR">
+        <div class="ball">
+          <div class="iris">
+            <span class="fibers"></span>
+            <span class="pupil"></span>
+            <span class="hi hi1"></span>
+            <span class="hi hi2"></span>
+          </div>
+        </div>
+        <span class="shade"></span>
+        <span class="lid top"></span>
+        <span class="lid bot"></span>
+      </div>
+
+    </div>
+
+    <!-- Camera view. Replaces the face while a photo is being taken. -->
+    <div class="camera" id="camera" hidden>
+      <video id="video" playsinline autoplay muted></video>
+      <div class="countdown" id="countdown"></div>
+      <div class="shutter" id="shutter"></div>
+      <img class="shot" id="shot" alt="" hidden>
+    </div>
+
+    <!-- No buttons. Chrome for Android still refuses to open the microphone
+         without a user gesture, so the whole screen is the gesture target:
+         a single tap anywhere starts listening, which is why there is nothing
+         here to draw. See wireGestures() in js/face.js. -->
+
+
+    <!-- Debug overlay. Hidden unless you double-tap, or something breaks. -->
+    <div class="hud" id="hud" hidden>
+      <div class="status">
+        <span class="dot" id="dot"></span>
+        <span id="statusText">asleep</span>
+      </div>
+      <div class="caption" id="caption"></div>
+    </div>
+
+  </main>
+
+  <canvas id="canvas" hidden></canvas>
+  <script src="js/face.js"></script>
+</body>
+</html>

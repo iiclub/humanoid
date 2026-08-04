@@ -1,0 +1,388 @@
+{
+  "version": 1,
+  "robotName": "Humanoid-01",
+  "network": {
+    "httpPort": 3000,
+    "nodeUdpPort": 4210,
+    "backendUdpPort": 4211,
+    "broadcastAddress": "255.255.255.255",
+    "announceIntervalMs": 3000,
+    "heartbeatTimeoutMs": 6000,
+    "commandRateHz": 25
+  },
+  "nodes": {
+    "right_hand": {
+      "id": "right_hand",
+      "label": "Right Hand NodeMCU",
+      "apSsid": "HUMANOID-RIGHT",
+      "apPassword": "12345678",
+      "servoCount": 5,
+      "ip": null
+    },
+    "left_hand": {
+      "id": "left_hand",
+      "label": "Left Hand + Head NodeMCU",
+      "apSsid": "HUMANOID-LEFT",
+      "apPassword": "12345678",
+      "servoCount": 7,
+      "ip": null
+    },
+    "drive": {
+      "id": "drive",
+      "label": "Drive / Wheels NodeMCU",
+      "apSsid": "HUMANOID-DRIVE",
+      "apPassword": "12345678",
+      "servoCount": 0,
+      "ip": null
+    }
+  },
+  "_joint_fields": {
+    "node": "which NodeMCU owns this servo",
+    "channel": "servo index inside that NodeMCU firmware (must match the firmware pin table order)",
+    "pin": "NodeMCU pin label, documentation + firmware cross-check",
+    "min/max": "mechanical limits in servo degrees",
+    "initial": "HOME angle. Must be min or max (0 or 180). Motion always starts here and travels to the other end.",
+    "direction": "+1 = servo turns the natural way, -1 = mirrored/reversed horn (angle is flipped before it is sent)",
+    "trim": "degrees added after direction is applied, to correct horn spline offset",
+    "speed": "max degrees per second used by the firmware slew limiter",
+    "vizRange": "[deg at travel 0, deg at travel 100] used only by the 3D / stick figure viewer"
+  },
+  "joints": [
+    {
+      "id": "right_shoulder_x",
+      "label": "R Shoulder X (front/back)",
+      "group": "right_arm",
+      "node": "right_hand",
+      "channel": 0,
+      "pin": "D1",
+      "min": 0,
+      "max": 180,
+      "initial": 0,
+      "direction": 1,
+      "trim": 0,
+      "speed": 120,
+      "vizRange": [
+        0,
+        150
+      ]
+    },
+    {
+      "id": "right_shoulder_y",
+      "label": "R Shoulder Y (side lift)",
+      "group": "right_arm",
+      "node": "right_hand",
+      "channel": 1,
+      "pin": "D2",
+      "min": 0,
+      "max": 180,
+      "initial": 0,
+      "direction": 1,
+      "trim": 0,
+      "speed": 120,
+      "vizRange": [
+        0,
+        140
+      ]
+    },
+    {
+      "id": "right_elbow",
+      "label": "R Elbow",
+      "group": "right_arm",
+      "node": "right_hand",
+      "channel": 2,
+      "pin": "D3",
+      "min": 0,
+      "max": 180,
+      "initial": 0,
+      "direction": 1,
+      "trim": 0,
+      "speed": 150,
+      "vizRange": [
+        0,
+        135
+      ]
+    },
+    {
+      "id": "right_wrist_z",
+      "label": "R Wrist Roll (Z)",
+      "group": "right_arm",
+      "node": "right_hand",
+      "channel": 3,
+      "pin": "D4",
+      "min": 0,
+      "max": 180,
+      "initial": 180,
+      "direction": 1,
+      "trim": 0,
+      "speed": 180,
+      "vizRange": [
+        -90,
+        90
+      ]
+    },
+    {
+      "id": "right_gripper",
+      "label": "R Gripper",
+      "group": "right_arm",
+      "node": "right_hand",
+      "channel": 4,
+      "pin": "D5",
+      "min": 0,
+      "max": 180,
+      "initial": 0,
+      "direction": 1,
+      "trim": 0,
+      "speed": 200,
+      "vizRange": [
+        0,
+        45
+      ]
+    },
+    {
+      "id": "left_shoulder_x",
+      "label": "L Shoulder X (front/back)",
+      "group": "left_arm",
+      "node": "left_hand",
+      "channel": 0,
+      "pin": "D1",
+      "min": 0,
+      "max": 180,
+      "initial": 0,
+      "direction": -1,
+      "trim": 0,
+      "speed": 120,
+      "vizRange": [
+        0,
+        150
+      ]
+    },
+    {
+      "id": "left_shoulder_y",
+      "label": "L Shoulder Y (side lift)",
+      "group": "left_arm",
+      "node": "left_hand",
+      "channel": 1,
+      "pin": "D2",
+      "min": 0,
+      "max": 180,
+      "initial": 0,
+      "direction": 1,
+      "trim": 0,
+      "speed": 120,
+      "vizRange": [
+        0,
+        140
+      ]
+    },
+    {
+      "id": "left_elbow",
+      "label": "L Elbow",
+      "group": "left_arm",
+      "node": "left_hand",
+      "channel": 2,
+      "pin": "D3",
+      "min": 0,
+      "max": 180,
+      "initial": 0,
+      "direction": -1,
+      "trim": 0,
+      "speed": 150,
+      "vizRange": [
+        0,
+        135
+      ]
+    },
+    {
+      "id": "left_wrist_z",
+      "label": "L Wrist Roll (Z)",
+      "group": "left_arm",
+      "node": "left_hand",
+      "channel": 3,
+      "pin": "D4",
+      "min": 0,
+      "max": 180,
+      "initial": 180,
+      "direction": -1,
+      "trim": 0,
+      "speed": 180,
+      "vizRange": [
+        -90,
+        90
+      ]
+    },
+    {
+      "id": "left_gripper",
+      "label": "L Gripper",
+      "group": "left_arm",
+      "node": "left_hand",
+      "channel": 4,
+      "pin": "D7",
+      "min": 0,
+      "max": 180,
+      "initial": 0,
+      "direction": 1,
+      "trim": 0,
+      "speed": 200,
+      "vizRange": [
+        0,
+        45
+      ]
+    },
+    {
+      "id": "head_pan",
+      "label": "Head Pan (X)",
+      "group": "head",
+      "node": "left_hand",
+      "channel": 5,
+      "pin": "D5",
+      "min": 0,
+      "max": 180,
+      "initial": 180,
+      "direction": 1,
+      "trim": 0,
+      "speed": 100,
+      "vizRange": [
+        -70,
+        70
+      ]
+    },
+    {
+      "id": "head_tilt",
+      "label": "Head Tilt (Y)",
+      "group": "head",
+      "node": "left_hand",
+      "channel": 6,
+      "pin": "D6",
+      "min": 0,
+      "max": 180,
+      "initial": 180,
+      "direction": 1,
+      "trim": 0,
+      "speed": 100,
+      "vizRange": [
+        -35,
+        35
+      ]
+    }
+  ],
+  "drive": {
+    "node": "drive",
+    "type": "differential",
+    "maxPwm": 1023,
+    "defaultSpeed": 900,
+    "turnScale": 1,
+    "failsafeMs": 600,
+    "motors": {
+      "leftFront": {
+        "rpwm": "D0",
+        "lpwm": "D1",
+        "invert": false
+      },
+      "leftRear": {
+        "rpwm": "D2",
+        "lpwm": "D3",
+        "invert": false
+      },
+      "rightFront": {
+        "rpwm": "D4",
+        "lpwm": "D5",
+        "invert": false
+      },
+      "rightRear": {
+        "rpwm": "D6",
+        "lpwm": "D7",
+        "invert": false
+      }
+    }
+  },
+  "_motor_fields": {
+    "driver": "L298N, direction pins only — HIGH/LOW, no PWM, so there is no speed control",
+    "node": "which NodeMCU drives it — its firmware must define the same two pins",
+    "pinCw": "L298N IN1: HIGH turns clockwise (IN2 low). The 'up' button.",
+    "pinCcw": "L298N IN2: HIGH turns anticlockwise (IN1 low). The 'down' button.",
+    "invert": "true swaps clockwise and anticlockwise without rewiring",
+    "failsafeMs": "firmware stops the motor if no command arrives inside this window"
+  },
+  "motor": {
+    "id": "aux_motor",
+    "label": "Aux Motor (Right Hand)",
+    "node": "right_hand",
+    "driver": "l298n",
+    "pinCw": "D7",
+    "pinCcw": "D8",
+    "invert": false,
+    "failsafeMs": 600
+  },
+  "poses": {
+    "home": {
+      "right_shoulder_x": 0,
+      "right_shoulder_y": 0,
+      "right_elbow": 0,
+      "right_wrist_z": 50,
+      "right_gripper": 0,
+      "left_shoulder_x": 0,
+      "left_shoulder_y": 0,
+      "left_elbow": 0,
+      "left_wrist_z": 50,
+      "left_gripper": 0,
+      "head_pan": 50,
+      "head_tilt": 50
+    },
+    "wave": {
+      "right_shoulder_x": 20,
+      "right_shoulder_y": 85,
+      "right_elbow": 70,
+      "right_wrist_z": 50,
+      "right_gripper": 60,
+      "left_shoulder_x": 0,
+      "left_shoulder_y": 0,
+      "left_elbow": 0,
+      "left_wrist_z": 50,
+      "left_gripper": 0,
+      "head_pan": 50,
+      "head_tilt": 55
+    },
+    "t_pose": {
+      "right_shoulder_x": 0,
+      "right_shoulder_y": 65,
+      "right_elbow": 0,
+      "right_wrist_z": 50,
+      "right_gripper": 0,
+      "left_shoulder_x": 0,
+      "left_shoulder_y": 65,
+      "left_elbow": 0,
+      "left_wrist_z": 50,
+      "left_gripper": 0,
+      "head_pan": 50,
+      "head_tilt": 50
+    },
+    "reach_out": {
+      "right_shoulder_x": 60,
+      "right_shoulder_y": 10,
+      "right_elbow": 10,
+      "right_wrist_z": 50,
+      "right_gripper": 100,
+      "left_shoulder_x": 60,
+      "left_shoulder_y": 10,
+      "left_elbow": 10,
+      "left_wrist_z": 50,
+      "left_gripper": 100,
+      "head_pan": 50,
+      "head_tilt": 40
+    },
+    "hands_up": {
+      "right_shoulder_x": 0,
+      "right_shoulder_y": 100,
+      "right_elbow": 20,
+      "right_wrist_z": 50,
+      "right_gripper": 0,
+      "left_shoulder_x": 0,
+      "left_shoulder_y": 100,
+      "left_elbow": 20,
+      "left_wrist_z": 50,
+      "left_gripper": 0,
+      "head_pan": 50,
+      "head_tilt": 60
+    }
+  }
+}

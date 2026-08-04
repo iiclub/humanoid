@@ -1,0 +1,423 @@
+/* ===========================================================================
+ *  /face — the robot's talking head.
+ *
+ *  Anatomy of one eye, outermost first:
+ *
+ *    .eye     the opening. An angular clip-path with the outer corner high and
+ *             the inner corner low — that brow angle is what makes it fierce.
+ *    .ball    the eyeball. A circle of sclera that TRANSLATES for gaze; it is
+ *             larger than the opening, so it can look around without ever
+ *             showing an edge.
+ *    .iris    radial base colour + .fibers striations + limbal ring
+ *    .pupil   a vertical slit, dilating by state
+ *    .hi      two speculars — one big and soft, one small and sharp. A single
+ *             highlight reads as plastic; two read as wet.
+ *    .shade   the shadow an upper lid casts on the eyeball. Doing without this
+ *             is the single biggest reason CSS eyes look flat.
+ *    .lid     top and bottom, black, sliding to meet in the middle. A real lid
+ *             sweep instead of squashing the whole eye, which no eye does.
+ *
+ *  Sized in vmin throughout so the face fills the screen identically in either
+ *  orientation.
+ * ========================================================================= */
+
+/* Bloodshot whites, cold blue irises.
+ *
+ * The red is the SCLERA — the part of an eye that is normally white — and the
+ * blue is the iris inside it. Inverting the natural pairing like this is what
+ * makes the face read as wrong rather than merely angry; a red iris on a white
+ * eye would just look like a warning light.
+ *
+ * Two separate glows on purpose: the iris burns blue, while the eye's outline
+ * bleeds red into the black around it.
+ */
+:root {
+  --iris-outer: #06214f;      /* deep navy rim */
+  --iris-mid:   #1f6fd0;      /* the blue you actually read */
+  --iris-inner: #a8e4ff;      /* hot pale core */
+  --glow: rgba(60, 150, 255, 0.55);       /* iris, blue */
+
+  --sclera: #e02020;          /* the "white" of the eye — now red */
+  --sclera-hot: #ff6b5e;      /* lit centre */
+  --sclera-mid: #a81414;
+  --sclera-rim: #5e0808;      /* curving away into shadow */
+  --eye-glow: rgba(255, 40, 28, 0.45);    /* silhouette, red */
+
+  --bg: #000;
+  --muted: #6d7890;
+}
+
+* { box-sizing: border-box; }
+
+/* The `hidden` attribute hides things only through `display: none` in the UA
+   stylesheet, and ANY author `display` rule outranks it. Both .camera and .hud
+   set `display: flex`, so both ignored `hidden` — leaving a full-screen black
+   .camera sheet parked on top of the face and the status overlay permanently
+   on. Make the attribute mean what it says. */
+[hidden] { display: none !important; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: #e7edfb;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  overflow: hidden;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+}
+
+/* No on-screen controls at all — the screen itself is the tap target.
+   See wireGestures() in js/face.js for what taps, double taps and long presses
+   do. The talk button and photo dot that used to live here are gone. */
+
+/* ----------------------------------------------------------------- stage -- */
+
+.stage {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+}
+
+/* ------------------------------------------------------------------ face -- */
+
+/* Eyes pushed to the extremes rather than sat next to each other: the face
+   spans the whole screen and the two eyes are shoved to its edges. Widely set
+   eyes read as inhuman, which is the point. `space-between` gives a bigger gap
+   than any fixed value could, because it takes whatever is left over. */
+.face {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  /* At 44.9vmin each the two eyes take 89.8 of the 100vmin short edge, leaving
+     just 10.2vmin for this padding and the gap between them combined. Raising
+     the padding pulls the centres together but eats that gap one-for-one — at
+     5.1vmin they touch. Any further growth has to come out of the width. */
+  padding: 0 4vmin;
+  align-items: center;
+  transition: opacity 260ms ease, transform 260ms ease;
+}
+.face.hidden { opacity: 0; transform: scale(0.92); pointer-events: none; }
+
+/* --- the opening -------------------------------------------------------- */
+
+/**
+ * The aperture, and where the menace comes from.
+ *
+ * A symmetric ellipse cannot look angry — it is the *brow angle* that does the
+ * work. Each eye is cut with clip-path so the outer corner sits high and the
+ * inner corner (toward the middle of the face) drags low, which is exactly the
+ * shape a lowered brow makes. Sharp vertices instead of a smooth curve finish
+ * the job: nothing organic about this face is soft.
+ *
+ * The two polygons are mirror images (x -> 100 - x), written out separately
+ * rather than flipping one eye with scaleX(-1) — a transform on the eye would
+ * also invert the gaze translate on the .ball inside it, and the eyes would
+ * cross whenever the control UI aimed them.
+ *
+ * Narrow, too: 26 × 19vmin is a squint, not a stare.
+ */
+.eye {
+  position: relative;
+  width: 44.9vmin;
+  height: 32.9vmin;
+  overflow: hidden;
+  background: #080a0c;
+  clip-path: polygon(0% 34%, 35% 6%, 100% 52%, 92% 78%, 40% 96%, 3% 66%);
+  filter: drop-shadow(0 0 4.4vmin var(--eye-glow));
+}
+#eyeR {
+  clip-path: polygon(0% 52%, 65% 6%, 100% 34%, 97% 66%, 60% 96%, 8% 78%);
+}
+
+/* --- the eyeball -------------------------------------------------------- */
+
+.ball {
+  position: absolute;
+  left: 50%; top: 50%;
+  /* Must exceed the aperture in BOTH axes, PLUS the gaze travel, or the
+     eyeball's own edge appears at the side of the opening. Getting that wrong
+     is invisible dead centre and obvious the moment the eyes look sideways.
+
+     The slack between this and the aperture is also what caps how far the eyes
+     can look. It used to be 3.45vmin, which made a full sweep about 7% of the
+     eye width — real movement, but far too small to notice once the eyes grew
+     this large, so swing and idle wander both looked broken. At 70vmin there
+     is 12.55vmin of slack and a sweep crosses a quarter of the eye.
+     Aperture 44.9 x 32.9vmin, gaze +/-11vmin. */
+  width: 70vmin; height: 70vmin;
+  margin: -35vmin 0 0 -35vmin;
+  border-radius: 50%;
+  /* Sclera is never flat white — it curves away at the edges and picks up a
+     little warmth near the corners. */
+  background:
+    radial-gradient(circle at 50% 44%, var(--sclera-hot) 0%, var(--sclera) 18%, var(--sclera-mid) 34%, var(--sclera-rim) 48%);
+  /* Saccades: real eyes jump, they do not glide. Short and sharp. */
+  transition: transform 110ms cubic-bezier(0.16, 0.9, 0.3, 1);
+  will-change: transform;
+}
+
+/* --- iris --------------------------------------------------------------- */
+
+.iris {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 18vmin; height: 18vmin;
+  margin: -9vmin 0 0 -9vmin;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%,
+      var(--iris-inner) 0%,
+      var(--iris-mid) 38%,
+      var(--iris-outer) 76%,
+      #0c2f34 100%);
+  /* The limbal ring — the dark band at the iris edge. Eyes without one look
+     like printed dots. */
+  box-shadow:
+    inset 0 0 0 0.5vmin rgba(2, 8, 22, 0.95),      /* hard limbal ring */
+    inset 0 0.5vmin 1vmin rgba(0, 0, 0, 0.55),
+    0 0 2.2vmin var(--glow);                       /* the eye itself burns */
+  transition: width 260ms ease, height 260ms ease, margin 260ms ease;
+  overflow: hidden;
+}
+
+/* Radial striations. Masked to a ring so they never cross the pupil. */
+.fibers {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: repeating-conic-gradient(from 0deg,
+    rgba(255, 255, 255, 0.16) 0deg 1.5deg,
+    rgba(0, 0, 0, 0.00) 1.5deg 2.2deg,
+    rgba(0, 0, 0, 0.22) 2.2deg 3.6deg);
+  -webkit-mask-image: radial-gradient(circle, transparent 30%, #000 40%, #000 88%, transparent 99%);
+  mask-image: radial-gradient(circle, transparent 30%, #000 40%, #000 88%, transparent 99%);
+  opacity: 0.75;
+  mix-blend-mode: overlay;
+}
+
+.pupil {
+  position: absolute;
+  left: 50%; top: 50%;
+  /* A vertical slit rather than a round pupil. Cats, snakes and every
+     unfriendly robot ever drawn — round pupils read as gentle. */
+  width: 4.2vmin; height: 14.9vmin;
+  margin: -7.45vmin 0 0 -2.1vmin;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 50%, #000 62%, #04101f 100%);
+  box-shadow: 0 0 0.8vmin rgba(0, 0, 0, 0.9);
+  transition: width 240ms ease, height 240ms ease, margin 240ms ease;
+}
+
+/* --- speculars ---------------------------------------------------------- */
+
+.hi { position: absolute; border-radius: 50%; pointer-events: none; }
+.hi1 {
+  left: 19%; top: 12%;
+  width: 22%; height: 18%;
+  background: rgba(255, 255, 255, 0.92);
+  filter: blur(0.35vmin);
+}
+.hi2 {
+  right: 22%; bottom: 20%;
+  width: 12%; height: 10%;
+  background: rgba(255, 255, 255, 0.5);
+  filter: blur(0.25vmin);
+}
+
+/* --- lid shadow on the eyeball ------------------------------------------ */
+
+.shade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(to bottom,
+    rgba(0, 0, 0, 0.55) 0%,
+    rgba(0, 0, 0, 0.18) 22%,
+    rgba(0, 0, 0, 0) 45%,
+    rgba(0, 0, 0, 0) 78%,
+    rgba(0, 0, 0, 0.22) 100%);
+}
+
+/* --- lids --------------------------------------------------------------- */
+
+.lid {
+  position: absolute;
+  left: -6%;
+  width: 112%;
+  height: 62%;                 /* >50% each, so they overlap when shut */
+  background: #000;
+  /* Opening and closing are not symmetric on a real face: the close is a snap,
+     the reopen is slower. JS swaps the duration; --lid-ms overrides it when the
+     Head tab is driving the lids. */
+  transition: transform var(--lid-ms, 140ms) cubic-bezier(0.33, 0, 0.67, 1);
+  will-change: transform;
+  z-index: 3;
+}
+.lid.top {
+  top: 0;
+  transform: translateY(-100%);
+  border-radius: 0 0 46% 46% / 0 0 26% 26%;   /* curved lash line */
+  box-shadow: 0 0.35vmin 0.8vmin rgba(0, 0, 0, 0.9);
+}
+.lid.bot {
+  bottom: 0;
+  transform: translateY(100%);
+  border-radius: 46% 46% 0 0 / 22% 22% 0 0;
+}
+.eye.blink .lid { transition-duration: 80ms; }
+.eye.blink .lid.top,
+.eye.blink .lid.bot { transform: translateY(0); }
+
+/* Half-lidded, for the bored/thinking look. */
+.eye.droop .lid.top { transform: translateY(-72%); }
+
+/* Shut. The duration comes from the Head tab's eye-speed slider via --lid-ms,
+   so "close the eyes" can be a slow drowsy fall or a snap, and falls back to a
+   sensible default when nothing has set it. */
+.eye.shut .lid { transition-duration: var(--lid-ms, 620ms); }
+.eye.shut .lid.top,
+.eye.shut .lid.bot { transform: translateY(0); }
+
+/* A slow breath while asleep, so it reads as dormant rather than broken. */
+.face.asleep { animation: breathe 4.6s ease-in-out infinite; }
+@keyframes breathe {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50%      { transform: translateY(0.7vmin) scale(0.992); }
+}
+
+/* --- state changes ------------------------------------------------------ */
+
+/* Listening: pupils widen, as they do with attention. */
+.face.listening .pupil {          /* dilated: the slit opens up */
+  width: 6.2vmin; height: 15.8vmin; margin: -7.9vmin 0 0 -3.1vmin;
+}
+/* Thinking: pupils contract and the lids come halfway down. */
+.face.thinking .pupil {           /* contracted to a hard line */
+  width: 2.6vmin; height: 13.6vmin; margin: -6.8vmin 0 0 -1.3vmin;
+}
+/* Speaking: a slight, constant pupil flutter, far subtler than a glow pulse. */
+.face.speaking .pupil { animation: speak-flutter 380ms ease-in-out infinite; }
+@keyframes speak-flutter {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.09); }
+}
+/* The microphone needs a tap and there is no button or text to ask for one, so
+   the irises pulse instead. Deliberately slow — a fast flash on a robot face
+   reads as a fault rather than an invitation. */
+.face.needs-tap .iris { animation: beg 1.9s ease-in-out infinite; }
+@keyframes beg {
+  0%, 100% { box-shadow: inset 0 0 0 0.5vmin rgba(2,8,22,0.95), inset 0 0.5vmin 1vmin rgba(0,0,0,0.55), 0 0 1.4vmin var(--glow); }
+  50%      { box-shadow: inset 0 0 0 0.5vmin rgba(2,8,22,0.95), inset 0 0.5vmin 1vmin rgba(0,0,0,0.55), 0 0 5vmin var(--glow); }
+}
+
+.face.error .iris {
+  background: radial-gradient(circle at 50% 50%, #fff6b0 0%, #ffd21f 38%, #a87700 76%, #3a2a00 100%);
+}
+
+/* ---------------------------------------------------------------- camera -- */
+
+.camera {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#video, .shot {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* Mirrored preview, so framing works like a mirror. The saved file is not —
+     see face.js. */
+  transform: scaleX(-1);
+}
+.countdown {
+  position: absolute;
+  font-size: 34vmin;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0 0 8vmin rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+.countdown:empty { display: none; }
+.shutter {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  opacity: 0;
+  pointer-events: none;
+}
+.shutter.flash { animation: flash 380ms ease-out; }
+@keyframes flash {
+  0% { opacity: 0.95; }
+  100% { opacity: 0; }
+}
+
+/* ------------------------------------------------- hud (double-tap only) -- */
+
+.hud {
+  position: fixed;
+  left: 0; right: 0; top: 0;
+  z-index: 30;
+  padding: max(14px, env(safe-area-inset-top)) 16px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  pointer-events: none;
+}
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 12px;
+  letter-spacing: 0.4px;
+  color: #b7c2d8;
+}
+.dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: background 200ms ease;
+}
+.dot.live { background: #4fd1c5; box-shadow: 0 0 10px #4fd1c5; animation: pulse 1.6s infinite; }
+.dot.busy { background: #f6c000; box-shadow: 0 0 10px #f6c000; }
+.dot.bad  { background: #ff6b6b; box-shadow: 0 0 10px #ff6b6b; }
+@keyframes pulse { 50% { opacity: 0.35; } }
+
+.caption {
+  max-width: 32ch;
+  text-align: center;
+  font-size: 15px;
+  line-height: 1.45;
+  color: #dbe3f4;
+  text-shadow: 0 2px 12px #000;
+  min-height: 1.4em;
+}
+.caption .heard { display: block; font-size: 12px; color: var(--muted); margin-bottom: 3px; }
+
+/* Landscape has vmin to spare on the long axis, so push the eyes wider apart
+   and a little bigger. */
+@media (orientation: landscape) {
+  .eye { width: 51.6vmin; height: 38vmin; }
+  .ball { width: 80vmin; height: 80vmin; margin: -40vmin 0 0 -40vmin; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pupil, .dot, .face.asleep { animation: none !important; }
+  .ball, .lid, .iris { transition: none !important; }
+}

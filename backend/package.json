@@ -1,0 +1,21 @@
+{
+  "name": "humanoid-control-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local-network control server for a two-arm + head + differential-drive humanoid built on NodeMCU (ESP8266)",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "sim": "node ../tools/sim-node.js",
+    "cert": "bash ../tools/make-cert.sh"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "ws": "^8.18.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
