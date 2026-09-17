@@ -16,11 +16,7 @@ yarn-error.log*
 # Saved record/play routines are per-robot calibration, not source.
 config/recordings.json
 
-# Music the Dance tab plays. The generated stand-in beat is ours and ships;
-# anything else dropped in here (the real song, via 📂 Track) is somebody's
-# recording and stays out. See README §8.1.
-frontend/audio/*
-!frontend/audio/dakait-beat.mp3
+
 
 .DS_Store
 *.swp
