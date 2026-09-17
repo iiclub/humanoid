@@ -1,0 +1,220 @@
+{
+  "version": 1,
+
+  "_fields": {
+    "id": "stable key — this is what the language model returns and what /api/actions/:id/run takes",
+    "label": "shown on the button in the UI",
+    "description": "one line, in plain English. This text is what the model actually reasons over, so write it for a reader, not for a parser.",
+    "utterances": "example phrasings. They seed the offline keyword matcher and are shown to the model as hints — they are NOT an exhaustive list, the model handles wordings that appear nowhere here.",
+    "steps": "played in order. Each step is a partial pose in travel % (0-100, the same units as the sliders and setup.json poses), held for ms before the next one starts.",
+    "steps[].pose": "any subset of joints. Joints you leave out keep whatever they were doing, so an arm gesture need not restate the head.",
+    "steps[].ms": "how long to hold before moving on. The firmware slews the servos at its own SERVO_SPEED, so this is dwell time, not travel time — leave enough for the joint to actually arrive.",
+    "steps[].repeat": "with a nested steps array, repeats that block N times. This is what makes a wave wave.",
+    "steps[].light": "true / false switches the work light mid-action",
+    "steps[].eyes": "patch for the phone face at /face, e.g. { \"blink\": true, \"look\": 40 }",
+    "steps[].motor": "up | down | stop — the torso lift. Held for the step's ms, then stopped, and never longer than the firmware's 4 s run cap."
+  },
+
+  "actions": [
+    {
+      "id": "home",
+      "label": "Home",
+      "description": "Returns every joint to its rest position, arms down at the sides.",
+      "utterances": ["go home", "rest", "relax", "stand down", "reset", "neutral position", "arms down", "stop and rest"],
+      "steps": [
+        { "pose": { "right_shoulder_x": 0, "right_shoulder_y": 0, "right_elbow": 0, "right_wrist_z": 50, "right_gripper": 0, "left_shoulder_x": 0, "left_shoulder_y": 0, "left_elbow": 0, "left_wrist_z": 50, "left_gripper": 0, "head_tilt": 50 }, "ms": 1200 }
+      ]
+    },
+
+    {
+      "id": "handshake",
+      "label": "Handshake",
+      "description": "Offers the right hand forward, closes the grip, shakes it up and down three times, then lets go and returns to rest.",
+      "utterances": ["shake hands", "handshake", "give me a hand shake", "shake my hand", "nice to meet you", "let's shake on it", "greet me properly", "offer your hand"],
+      "steps": [
+        { "pose": { "right_shoulder_x": 55, "right_shoulder_y": 25, "right_elbow": 45, "right_wrist_z": 50, "right_gripper": 100, "head_tilt": 45 }, "ms": 1100,
+          "eyes": { "look": 0, "blink": true } },
+        { "pose": { "right_gripper": 15 }, "ms": 600 },
+        { "repeat": 3, "steps": [
+          { "pose": { "right_shoulder_x": 62, "right_elbow": 55 }, "ms": 380 },
+          { "pose": { "right_shoulder_x": 48, "right_elbow": 38 }, "ms": 380 }
+        ] },
+        { "pose": { "right_shoulder_x": 55, "right_elbow": 45, "right_gripper": 100 }, "ms": 700 },
+        { "pose": { "right_shoulder_x": 0, "right_shoulder_y": 0, "right_elbow": 0, "right_gripper": 0, "head_tilt": 50 }, "ms": 1100 }
+      ]
+    },
+
+    {
+      "id": "hands_up",
+      "label": "Hands up",
+      "description": "Raises both arms straight up above the shoulders and holds them there.",
+      "utterances": ["hands up", "put your hands up", "raise your hands", "arms up", "reach for the sky", "surrender", "both hands up", "lift your arms"],
+      "steps": [
+        { "pose": { "right_shoulder_x": 0, "right_shoulder_y": 100, "right_elbow": 20, "right_wrist_z": 50, "right_gripper": 0, "left_shoulder_x": 0, "left_shoulder_y": 100, "left_elbow": 20, "left_wrist_z": 50, "left_gripper": 0, "head_tilt": 60 }, "ms": 1600 }
+      ]
+    },
+
+    {
+      "id": "wave",
+      "label": "Wave",
+      "description": "Raises the right arm and waves the hand side to side in greeting.",
+      "utterances": ["wave", "say hi", "say hello", "wave at me", "greet me", "hello there", "wave hello", "wave goodbye", "bye"],
+      "steps": [
+        { "pose": { "right_shoulder_x": 20, "right_shoulder_y": 85, "right_elbow": 70, "right_wrist_z": 50, "right_gripper": 60, "head_tilt": 55 }, "ms": 900,
+          "eyes": { "blink": true } },
+        { "repeat": 4, "steps": [
+          { "pose": { "right_wrist_z": 80 }, "ms": 320 },
+          { "pose": { "right_wrist_z": 20 }, "ms": 320 }
+        ] },
+        { "pose": { "right_wrist_z": 50 }, "ms": 400 },
+        { "pose": { "right_shoulder_x": 0, "right_shoulder_y": 0, "right_elbow": 0, "right_gripper": 0, "head_tilt": 50 }, "ms": 1100 }
+      ]
+    },
+
+    {
+      "id": "salute",
+      "label": "Salute",
+      "description": "Brings the right hand up to the side of the head in a salute, holds, then lowers it.",
+      "utterances": ["salute", "give me a salute", "yes sir", "at attention", "military salute"],
+      "steps": [
+        { "pose": { "right_shoulder_x": 15, "right_shoulder_y": 75, "right_elbow": 95, "right_wrist_z": 50, "right_gripper": 0, "head_tilt": 45 }, "ms": 1100 },
+        { "pose": {}, "ms": 900 },
+        { "pose": { "right_shoulder_x": 0, "right_shoulder_y": 0, "right_elbow": 0, "head_tilt": 50 }, "ms": 1100 }
+      ]
+    },
+
+    {
+      "id": "t_pose",
+      "label": "T-pose",
+      "description": "Holds both arms straight out to the sides, level with the shoulders.",
+      "utterances": ["t pose", "tee pose", "arms out", "spread your arms", "stretch out", "arms to the side"],
+      "steps": [
+        { "pose": { "right_shoulder_x": 0, "right_shoulder_y": 65, "right_elbow": 0, "right_wrist_z": 50, "right_gripper": 0, "left_shoulder_x": 0, "left_shoulder_y": 65, "left_elbow": 0, "left_wrist_z": 50, "left_gripper": 0, "head_tilt": 50 }, "ms": 1500 }
+      ]
+    },
+
+    {
+      "id": "reach_out",
+      "label": "Reach out",
+      "description": "Extends both arms forward with the grippers open, as if to take something.",
+      "utterances": ["reach out", "reach forward", "give me something", "hand it over", "take this", "arms forward", "hold this", "catch"],
+      "steps": [
+        { "pose": { "right_shoulder_x": 60, "right_shoulder_y": 10, "right_elbow": 10, "right_wrist_z": 50, "right_gripper": 100, "left_shoulder_x": 60, "left_shoulder_y": 10, "left_elbow": 10, "left_wrist_z": 50, "left_gripper": 100, "head_tilt": 40 }, "ms": 1500 }
+      ]
+    },
+
+    {
+      "id": "hug",
+      "label": "Hug",
+      "description": "Opens both arms wide, then closes them inward in a hug, holds, and releases.",
+      "utterances": ["hug", "give me a hug", "hug me", "come here", "embrace"],
+      "steps": [
+        { "pose": { "right_shoulder_x": 30, "right_shoulder_y": 55, "right_elbow": 20, "left_shoulder_x": 30, "left_shoulder_y": 55, "left_elbow": 20, "right_gripper": 60, "left_gripper": 60, "head_tilt": 45 }, "ms": 1200 },
+        { "pose": { "right_shoulder_x": 65, "right_shoulder_y": 25, "right_elbow": 70, "left_shoulder_x": 65, "left_shoulder_y": 25, "left_elbow": 70 }, "ms": 1400 },
+        { "pose": {}, "ms": 900 },
+        { "pose": { "right_shoulder_x": 0, "right_shoulder_y": 0, "right_elbow": 0, "right_gripper": 0, "left_shoulder_x": 0, "left_shoulder_y": 0, "left_elbow": 0, "left_gripper": 0, "head_tilt": 50 }, "ms": 1300 }
+      ]
+    },
+
+    {
+      "id": "point_forward",
+      "label": "Point",
+      "description": "Extends the right arm straight forward and points, with the gripper closed.",
+      "utterances": ["point", "point forward", "point over there", "point ahead", "that way", "show me the way"],
+      "steps": [
+        { "pose": { "right_shoulder_x": 70, "right_shoulder_y": 15, "right_elbow": 5, "right_wrist_z": 50, "right_gripper": 0, "head_tilt": 45 }, "ms": 1200 },
+        { "pose": {}, "ms": 1000 },
+        { "pose": { "right_shoulder_x": 0, "right_shoulder_y": 0, "head_tilt": 50 }, "ms": 1100 }
+      ]
+    },
+
+    {
+      "id": "nod_yes",
+      "label": "Nod yes",
+      "description": "Nods the head up and down twice to say yes.",
+      "utterances": ["nod", "nod your head", "say yes", "agree", "yes", "that's right", "confirm"],
+      "steps": [
+        { "repeat": 2, "steps": [
+          { "pose": { "head_tilt": 70 }, "ms": 450 },
+          { "pose": { "head_tilt": 35 }, "ms": 450 }
+        ] },
+        { "pose": { "head_tilt": 50 }, "ms": 500 }
+      ]
+    },
+
+    {
+      "id": "bow",
+      "label": "Bow",
+      "description": "Tilts the head down in a slow, respectful bow with both arms at the sides, then straightens up.",
+      "utterances": ["bow", "take a bow", "bow down", "thank you", "namaste", "respect"],
+      "steps": [
+        { "pose": { "right_shoulder_x": 0, "right_shoulder_y": 0, "right_elbow": 0, "left_shoulder_x": 0, "left_shoulder_y": 0, "left_elbow": 0, "head_tilt": 95 }, "ms": 1600 },
+        { "pose": {}, "ms": 800 },
+        { "pose": { "head_tilt": 50 }, "ms": 1200 }
+      ]
+    },
+
+    {
+      "id": "open_hands",
+      "label": "Open grippers",
+      "description": "Opens both grippers all the way.",
+      "utterances": ["open your hands", "open the grippers", "let go", "release", "drop it", "open hand"],
+      "steps": [{ "pose": { "right_gripper": 100, "left_gripper": 100 }, "ms": 800 }]
+    },
+
+    {
+      "id": "close_hands",
+      "label": "Close grippers",
+      "description": "Closes both grippers into a fist.",
+      "utterances": ["close your hands", "close the grippers", "grab it", "hold it", "make a fist", "grip"],
+      "steps": [{ "pose": { "right_gripper": 0, "left_gripper": 0 }, "ms": 800 }]
+    },
+
+    {
+      "id": "dance",
+      "label": "Dance",
+      "description": "A short celebratory routine — the arms pump alternately up and down while the head bobs along.",
+      "utterances": ["dance", "do a dance", "celebrate", "party", "show me your moves", "get down", "boogie"],
+      "steps": [
+        { "pose": { "right_shoulder_y": 70, "right_elbow": 60, "left_shoulder_y": 20, "left_elbow": 20, "head_tilt": 45 }, "ms": 500 },
+        { "repeat": 4, "steps": [
+          { "pose": { "right_shoulder_y": 20, "right_elbow": 20, "left_shoulder_y": 70, "left_elbow": 60, "head_tilt": 60 }, "ms": 450 },
+          { "pose": { "right_shoulder_y": 70, "right_elbow": 60, "left_shoulder_y": 20, "left_elbow": 20, "head_tilt": 40 }, "ms": 450 }
+        ] },
+        { "pose": { "right_shoulder_x": 0, "right_shoulder_y": 0, "right_elbow": 0, "left_shoulder_x": 0, "left_shoulder_y": 0, "left_elbow": 0, "head_tilt": 50 }, "ms": 1200 }
+      ]
+    },
+
+    {
+      "id": "light_on",
+      "label": "Light on",
+      "description": "Switches the work light on.",
+      "utterances": ["light on", "turn on the light", "switch on the light", "lights on", "i can't see", "give me some light", "it's dark"],
+      "steps": [{ "light": true, "ms": 300 }]
+    },
+
+    {
+      "id": "light_off",
+      "label": "Light off",
+      "description": "Switches the work light off.",
+      "utterances": ["light off", "turn off the light", "switch off the light", "lights out", "kill the light"],
+      "steps": [{ "light": false, "ms": 300 }]
+    },
+
+    {
+      "id": "torso_up",
+      "label": "Torso up",
+      "description": "Raises the torso for two seconds, lifting the whole upper body.",
+      "utterances": ["stand up", "torso up", "raise yourself", "get taller", "lift up", "rise", "go up"],
+      "steps": [{ "motor": "up", "ms": 2000 }]
+    },
+
+    {
+      "id": "torso_down",
+      "label": "Torso down",
+      "description": "Lowers the torso for two seconds.",
+      "utterances": ["sit down", "torso down", "lower yourself", "get smaller", "crouch", "go down", "duck"],
+      "steps": [{ "motor": "down", "ms": 2000 }]
+    }
+  ]
+}

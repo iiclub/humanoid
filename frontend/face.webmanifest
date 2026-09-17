@@ -7,7 +7,7 @@
   "display": "fullscreen",
   "display_override": ["fullscreen", "standalone"],
 
-  "orientation": "portrait",
+  "orientation": "landscape",
   "start_url": "/face",
   "scope": "/",
   "background_color": "#000000",

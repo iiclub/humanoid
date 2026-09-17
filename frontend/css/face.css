@@ -37,14 +37,19 @@
   --iris-inner: #a8e4ff;      /* hot pale core */
   --glow: rgba(60, 150, 255, 0.55);       /* iris, blue */
 
-  --sclera: #e02020;          /* the "white" of the eye — now red */
-  --sclera-hot: #ff6b5e;      /* lit centre */
-  --sclera-mid: #a81414;
-  --sclera-rim: #5e0808;      /* curving away into shadow */
-  --eye-glow: rgba(255, 40, 28, 0.45);    /* silhouette, red */
+  --sclera: #d4171b;          /* the "white" of the eye — now red */
+  --sclera-hot: #ff8a72;      /* lit centre */
+  --sclera-mid: #8e0f14;
+  --sclera-rim: #2c0305;      /* curving away into shadow */
+  --eye-glow: rgba(255, 46, 30, 0.55);    /* silhouette, red */
 
   --bg: #000;
   --muted: #6d7890;
+
+  /* One beat, in ms. face.js rewrites this from the eye state's bpm, so every
+     DJ animation below is written in beats and the whole face re-times itself
+     when the tempo changes. 588ms = 102 BPM = FA9LA. */
+  --beat-ms: 588ms;
 }
 
 * { box-sizing: border-box; }
@@ -106,6 +111,29 @@ html, body {
 }
 .face.hidden { opacity: 0; transform: scale(0.92); pointer-events: none; }
 
+/**
+ * The bloom the eyes cast into the room.
+ *
+ * It lives on .face rather than on .eye because .eye is clipped — overflow
+ * hidden plus a clip-path — so nothing can escape its own outline, and a
+ * drop-shadow on a shape that dark is far too weak to read as emitted light.
+ * Two radial gradients sat where the eyes are do the job with no extra markup,
+ * and being behind the eyes they never wash out the iris detail.
+ */
+.face::before {
+  content: '';
+  position: absolute;
+  inset: -30% -10%;
+  pointer-events: none;
+  /* No negative z-index: that would paint it behind the stage's black and
+     make it invisible. As the first child of .face it already sits under the
+     eyes, which is all that is wanted. */
+  background:
+    radial-gradient(ellipse 26% 42% at 24% 50%, rgba(255, 62, 40, 0.40), rgba(255, 30, 20, 0.13) 48%, transparent 72%),
+    radial-gradient(ellipse 26% 42% at 76% 50%, rgba(255, 62, 40, 0.40), rgba(255, 30, 20, 0.13) 48%, transparent 72%);
+}
+.face { position: relative; }
+
 /* --- the opening -------------------------------------------------------- */
 
 /**
@@ -131,7 +159,13 @@ html, body {
   overflow: hidden;
   background: #080a0c;
   clip-path: polygon(0% 34%, 35% 6%, 100% 52%, 92% 78%, 40% 96%, 3% 66%);
-  filter: drop-shadow(0 0 4.4vmin var(--eye-glow));
+  /* Two stages, not one. A single mid-radius shadow reads as a fuzzy outline;
+     a tight bright core plus a wide dim halo is what actual emitted light does
+     to a dark room, and it is the difference between a red shape and a red
+     LIGHT. */
+  filter:
+    drop-shadow(0 0 1.6vmin rgba(255, 90, 60, 0.65))
+    drop-shadow(0 0 7vmin var(--eye-glow));
 }
 #eyeR {
   clip-path: polygon(0% 52%, 65% 6%, 100% 34%, 97% 66%, 60% 96%, 8% 78%);
@@ -157,8 +191,17 @@ html, body {
   border-radius: 50%;
   /* Sclera is never flat white — it curves away at the edges and picks up a
      little warmth near the corners. */
+  /* The aperture only shows the middle ~47% of this ball, so the whole
+     light-to-shadow ramp has to live inside that — spread wider and the
+     visible part is a single flat tone, which is exactly how it used to look.
+     Off-centre highlight, because a sphere lit from above is not symmetric. */
   background:
-    radial-gradient(circle at 50% 44%, var(--sclera-hot) 0%, var(--sclera) 18%, var(--sclera-mid) 34%, var(--sclera-rim) 48%);
+    radial-gradient(circle at 42% 34%,
+      var(--sclera-hot) 0%,
+      var(--sclera) 11%,
+      var(--sclera-mid) 22%,
+      var(--sclera-rim) 34%,
+      #14090a 46%);
   /* Saccades: real eyes jump, they do not glide. Short and sharp. */
   transition: transform 110ms cubic-bezier(0.16, 0.9, 0.3, 1);
   will-change: transform;
@@ -172,18 +215,23 @@ html, body {
   width: 18vmin; height: 18vmin;
   margin: -9vmin 0 0 -9vmin;
   border-radius: 50%;
+  /* Off-centre core, matching the sclera's light direction, and a much
+     darker outer third so the limbal ring has something to sit against —
+     a flat blue disc is what it read as before. */
   background:
-    radial-gradient(circle at 50% 50%,
+    radial-gradient(circle at 44% 38%,
       var(--iris-inner) 0%,
-      var(--iris-mid) 38%,
-      var(--iris-outer) 76%,
-      #0c2f34 100%);
+      var(--iris-mid) 30%,
+      var(--iris-outer) 62%,
+      #041226 88%,
+      #020a16 100%);
   /* The limbal ring — the dark band at the iris edge. Eyes without one look
      like printed dots. */
   box-shadow:
-    inset 0 0 0 0.5vmin rgba(2, 8, 22, 0.95),      /* hard limbal ring */
-    inset 0 0.5vmin 1vmin rgba(0, 0, 0, 0.55),
-    0 0 2.2vmin var(--glow);                       /* the eye itself burns */
+    inset 0 0 0 0.55vmin rgba(1, 5, 16, 0.98),     /* hard limbal ring */
+    inset 0 0.6vmin 1.4vmin rgba(0, 0, 0, 0.7),    /* lid shadow ON the iris */
+    inset 0 -0.4vmin 0.9vmin rgba(120, 200, 255, 0.28),  /* bounce off the lower rim */
+    0 0 3.2vmin var(--glow);                       /* the eye itself burns */
   transition: width 260ms ease, height 260ms ease, margin 260ms ease;
   overflow: hidden;
 }
@@ -208,11 +256,15 @@ html, body {
   left: 50%; top: 50%;
   /* A vertical slit rather than a round pupil. Cats, snakes and every
      unfriendly robot ever drawn — round pupils read as gentle. */
-  width: 4.2vmin; height: 14.9vmin;
-  margin: -7.45vmin 0 0 -2.1vmin;
+  width: 5vmin; height: 15.6vmin;
+  margin: -7.8vmin 0 0 -2.5vmin;
   border-radius: 50%;
-  background: radial-gradient(ellipse at 50% 50%, #000 62%, #04101f 100%);
-  box-shadow: 0 0 0.8vmin rgba(0, 0, 0, 0.9);
+  /* Pure black all the way out. The old version faded to a navy at the edge,
+     which at this size read as a grey slit rather than an opening. */
+  background: #000;
+  box-shadow:
+    0 0 1.1vmin rgba(0, 0, 0, 0.95),
+    inset 0 0 0.6vmin rgba(0, 0, 0, 1);
   transition: width 240ms ease, height 240ms ease, margin 240ms ease;
 }
 
@@ -238,12 +290,21 @@ html, body {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(to bottom,
-    rgba(0, 0, 0, 0.55) 0%,
-    rgba(0, 0, 0, 0.18) 22%,
-    rgba(0, 0, 0, 0) 45%,
-    rgba(0, 0, 0, 0) 78%,
-    rgba(0, 0, 0, 0.22) 100%);
+  /* Two jobs: the shadow an upper lid casts down the eyeball, and a vignette
+     into the corners of the opening. Without the second one the eyeball looks
+     pasted on top of the face rather than set into a socket — the single
+     biggest reason the old version read as a flat red cut-out. */
+  background:
+    radial-gradient(ellipse 78% 88% at 46% 40%,
+      rgba(0, 0, 0, 0) 40%,
+      rgba(0, 0, 0, 0.45) 78%,
+      rgba(0, 0, 0, 0.85) 100%),
+    linear-gradient(to bottom,
+      rgba(0, 0, 0, 0.62) 0%,
+      rgba(0, 0, 0, 0.2) 24%,
+      rgba(0, 0, 0, 0) 46%,
+      rgba(0, 0, 0, 0) 76%,
+      rgba(0, 0, 0, 0.3) 100%);
 }
 
 /* --- lids --------------------------------------------------------------- */
@@ -410,12 +471,128 @@ html, body {
 }
 .caption .heard { display: block; font-size: 12px; color: var(--muted); margin-bottom: 3px; }
 
-/* Landscape has vmin to spare on the long axis, so push the eyes wider apart
-   and a little bigger. */
-@media (orientation: landscape) {
-  .eye { width: 51.6vmin; height: 38vmin; }
-  .ball { width: 80vmin; height: 80vmin; margin: -40vmin 0 0 -40vmin; }
+/* --------------------------------------------------------------- DJ mode -- */
+
+/**
+ * What the phone does while a dance routine is playing.
+ *
+ * The class goes on <body>, NOT on .face — setState() in face.js rebuilds
+ * .face's entire className on every state change (listening, thinking,
+ * speaking), so anything parked there is wiped the first time the robot is
+ * spoken to mid-dance.
+ *
+ * TWO animations, not five. The previous version ran a strobe, two
+ * counter-rotating beam rigs, a kick scale and a pupil pump at once, which is
+ * the "animate everything that moves" anti-pattern — and a white full-screen
+ * strobe at two flashes per bar is a genuine seizure risk, not a style choice.
+ * What replaced it is the thing the face already has: it is a light source, so
+ * make the light do the work.
+ *
+ *   1. the bloom pulses on the beat   — the room lighting, on the one
+ *   2. the eyes cycle colour          — slow, eight beats per revolution
+ *
+ * Everything is timed in multiples of --beat-ms rather than in seconds, so one
+ * variable retimes the whole face when the tempo changes. Only transform,
+ * opacity and filter are animated: this runs on a phone wedged inside a
+ * robot's head with the screen forced awake, and a layout-thrashing animation
+ * there shows up as heat before it shows up as jank.
+ */
+
+/* A touch of lift off pure black, so the colour has something to sit in. */
+body.dj .stage {
+  background: radial-gradient(130% 90% at 50% 50%, #120209 0%, #05030a 55%, #000 100%);
 }
+
+/* The bloom IS the lighting rig. It brightens and spreads on each beat and
+   falls away between — which is what a room lit by the robot would do, and it
+   needs no extra elements because the eyes already cast it. */
+body.dj .face::before {
+  animation: dj-bloom var(--beat-ms) cubic-bezier(0.15, 0.75, 0.3, 1) infinite;
+}
+@keyframes dj-bloom {
+  0%   { opacity: 1;    transform: scale(1.16); filter: saturate(1.7) brightness(1.5); }
+  45%  { opacity: 0.72; transform: scale(1);    filter: saturate(1.2) brightness(1); }
+  100% { opacity: 0.62; transform: scale(0.98); filter: saturate(1.1) brightness(0.92); }
+}
+
+/* Colour cycle, across the eyes AND their bloom together so the light in the
+   room always matches the light in the face. Eight beats per revolution: slow
+   enough to read as a colour wash rather than a flicker. The filter has to
+   restate the drop-shadows the eye already carries — a filter on the same
+   element replaces them outright rather than adding to them. */
+body.dj .face { animation: dj-hue calc(var(--beat-ms) * 8) linear infinite; }
+@keyframes dj-hue {
+  0%   { filter: hue-rotate(0deg)   saturate(1.35); }
+  50%  { filter: hue-rotate(180deg) saturate(1.7); }
+  100% { filter: hue-rotate(360deg) saturate(1.35); }
+}
+
+/* The iris keeps its own small pulse on the off-beat, so the eye still has
+   something happening between the bloom's beats. scaleX only: the slit is
+   already the full height of the iris and scaling it vertically would push it
+   out through the limbal ring. This deliberately outranks .face.speaking's
+   flutter — mid-dance, the dance wins. */
+body.dj .pupil {
+  animation: dj-pupil calc(var(--beat-ms) * 2) ease-in-out infinite;
+}
+@keyframes dj-pupil {
+  0%, 100% { transform: scaleX(1); }
+  50%      { transform: scaleX(1.5); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The pulse is the part that can bother somebody. The colour wash stays,
+     slowly, so the face still reads as "in DJ mode". */
+  body.dj .face::before, body.dj .pupil { animation: none !important; }
+  body.dj .face { animation-duration: 40s !important; }
+}
+
+/* Landscape — the phone lies on its side inside the head, so this is the
+   orientation that actually matters.
+
+   Everything above is sized in vmin, which in landscape is the HEIGHT, so
+   the eyes come out at a third of the screen with a void between them twice
+   an eye wide. Rather than re-derive every vmin for a second axis, the pair
+   is centred with a fixed gap and the whole face is scaled: bloom, gaze
+   travel, iris and lids all keep their proportions because they scale
+   together. 1.7 fits a 16:9 screen with a margin; a 20:9 phone gets more
+   black at the sides, which is fine — that is where the head's shell is. */
+@media (orientation: landscape) {
+  .face {
+    justify-content: center;
+    gap: 6vh;
+    padding: 0;
+    transform: scale(1.7);
+  }
+}
+
+/* The fullscreen button. Bottom-right, out of the eyes' way, big enough for a
+   thumb (44px minimum touch target), faint so it does not read as part of the
+   face. It disappears by CSS alone once fullscreen is on — no JS state to get
+   out of step with the truth. */
+.fullbtn {
+  position: fixed;
+  right: max(14px, env(safe-area-inset-right));
+  bottom: max(14px, env(safe-area-inset-bottom));
+  width: 48px; height: 48px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(20, 22, 30, 0.55);
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 20;
+  -webkit-tap-highlight-color: transparent;
+}
+.fullbtn:active { background: rgba(79, 209, 197, 0.35); }
+:root:fullscreen .fullbtn,
+:root:-webkit-full-screen .fullbtn { display: none; }
+@media (display-mode: fullscreen), (display-mode: standalone) { .fullbtn { display: none; } }
+
+/* Live dance: the status dot goes red so a glance at the phone says whether
+   it is listening to the room or listening for speech. */
+.dot.live { background: #ff4d6d; box-shadow: 0 0 10px #ff4d6d; animation: pulse 1s infinite; }
 
 @media (prefers-reduced-motion: reduce) {
   .pupil, .dot, .face.asleep { animation: none !important; }

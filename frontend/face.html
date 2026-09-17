@@ -62,11 +62,18 @@
       <img class="shot" id="shot" alt="" hidden>
     </div>
 
-    <!-- No buttons. Chrome for Android still refuses to open the microphone
-         without a user gesture, so the whole screen is the gesture target:
-         a single tap anywhere starts listening, which is why there is nothing
-         here to draw. See wireGestures() in js/face.js. -->
+    <!-- Almost no buttons. Chrome for Android still refuses to open the
+         microphone without a user gesture, so the whole screen is the gesture
+         target: a single tap anywhere starts listening. The one exception is
+         the ⛶ below. See wireGestures() in js/face.js. -->
 
+
+    <!-- The one button on the page. Chrome for Android only grants fullscreen
+         from a user gesture and can refuse a tap that is also doing other
+         work, so this exists as an unambiguous request. CSS hides it the
+         moment fullscreen is actually on, and in an installed PWA where
+         there is no browser chrome to escape in the first place. -->
+    <button class="fullbtn" id="btnFull" type="button" aria-label="Full screen">⛶</button>
 
     <!-- Debug overlay. Hidden unless you double-tap, or something breaks. -->
     <div class="hud" id="hud" hidden>
@@ -80,6 +87,11 @@
   </main>
 
   <canvas id="canvas" hidden></canvas>
+  <!-- The live-dance analyser is a module (it shares the move library with
+       the Dance tab's generator); face.js is a classic script and reaches it
+       through window.liveDance. Loaded first so the global exists by the time
+       a `live` message can arrive. -->
+  <script type="module" src="js/livedance.js"></script>
   <script src="js/face.js"></script>
 </body>
 </html>

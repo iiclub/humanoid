@@ -20,7 +20,7 @@ const LABELLED = [
   { pt: 'left_shoulder', joints: ['left_shoulder_x', 'left_shoulder_y'], side: 'left' },
   { pt: 'left_elbow', joints: ['left_elbow'], side: 'left' },
   { pt: 'left_wrist', joints: ['left_wrist_z', 'left_gripper'], side: 'left' },
-  { pt: 'head', joints: ['head_pan', 'head_tilt'], side: 'right' },
+  { pt: 'head', joints: ['head_tilt'], side: 'right' },
 ];
 
 export class StickView {

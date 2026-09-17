@@ -15,7 +15,7 @@ const STORE_PATH = path.resolve(__dirname, '..', '..', 'config', 'recordings.jso
  * PLAY    replays those frames with their original timing, straight back through
  *         the controller, optionally in an endless loop.
  *
- * Frames look like:  { t: msFromStart, kind: 'joint'|'drive'|'motor', ... }
+ * Frames look like:  { t: msFromStart, kind: 'joint'|'drive'|'motor'|'light', ... }
  *
  * Playback re-drives the base at ~4 Hz while a non-zero drive frame is active,
  * because the drive firmware has a 600 ms "no command -> stop" failsafe; a
@@ -148,6 +148,10 @@ class Recorder {
         this.controller.setMotor(frame.dir);
         this.lastMotor = { dir: frame.dir };
         this._armKeepAlive();
+      } else if (frame.kind === 'light') {
+        // Nothing to keep alive: the light latches, it has no failsafe.
+        if (frame.sequence) this.controller.lightSequence();
+        else this.controller.setLight(frame.on);
       }
     } catch {
       /* a node may be offline mid-playback; keep going */

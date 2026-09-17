@@ -101,7 +101,7 @@ function armChain(setup, pose, side) {
 }
 
 export function solve(setup, pose) {
-  const pan = vizDeg(setup, pose, 'head_pan') * D;
+  // The head tilts only — there is no pan servo, so yaw is fixed at zero.
   const tilt = vizDeg(setup, pose, 'head_tilt') * D;
 
   const right = armChain(setup, pose, 'right');
@@ -110,7 +110,7 @@ export function solve(setup, pose) {
   const pelvis = [0, DIM.pelvis, 0];
   const chest = [0, DIM.chest, 0];
   const neck = [0, DIM.neckY, 0];
-  const Rh = M.mul(M.rotY(pan), M.rotX(-tilt));
+  const Rh = M.rotX(-tilt);
   const head = add(neck, scale(M.apply(Rh, [0, 1, 0]), DIM.neckLen + DIM.headRadius * 0.4));
   const eyeL = add(head, M.apply(Rh, [-3, 1.5, DIM.headRadius * 0.95]));
   const eyeR = add(head, M.apply(Rh, [3, 1.5, DIM.headRadius * 0.95]));

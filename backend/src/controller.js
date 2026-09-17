@@ -24,6 +24,10 @@ class Controller {
     this.pending = new Map();   // nodeId -> { channel: angle }
     this.lastSent = new Map();  // nodeId -> timestamp
     this.flushTimer = null;
+
+    // Torso run cap — see setMotor().
+    this._motorRunStarted = 0;
+    this._motorCappedDir = 0;
   }
 
   // ---------------------------------------------------------------- joints --
@@ -70,6 +74,14 @@ class Controller {
       this._queue(joint.node, joint.channel, angle);
     }
     this._flush(true);
+
+    /* A board that just rebooted has run its own power-on light sequence and
+       left the light lit. Push what the UI thinks it should be, so a light
+       switched off before the reboot does not come back on by itself. */
+    const light = this.setup.light;
+    if (light && (!nodeId || light.node === nodeId)) {
+      this.link.sendLight(light.node, this.state.light.on);
+    }
   }
 
   // ----------------------------------------------------------------- drive --
@@ -130,32 +142,63 @@ class Controller {
     return this.driveRaw((left / peak) * max, (right / peak) * max, 'vector');
   }
 
-  // ------------------------------------------------------------ aux motor --
+  // ----------------------------------------------------------- torso lift --
 
   /**
-   * The single reversible motor on the right-hand board — an L298N driven by
-   * direction alone (HIGH/LOW, no PWM), so there is nothing to set but a sign:
+   * The reversible motor on the right-hand board that raises and lowers the
+   * torso — an L298N driven by direction alone (HIGH/LOW, no PWM), so there is
+   * nothing to set but a sign:
    *
-   *   dir  +1  clockwise      ("up" button)
-   *   dir  -1  anticlockwise  ("down" button)
-   *   dir   0  stop           (button released)
+   *   dir  +1  up     ("up" button held)
+   *   dir  -1  down   ("down" button held, or the auto-lower after a release)
+   *   dir   0  stop
    *
-   * Like the base, this is hold-to-run: the firmware stops on its own if no
-   * command arrives inside `failsafeMs`, so a closed browser tab cannot leave
-   * the motor spinning.
+   * Hold-to-run, like the base: the firmware stops on its own if no command
+   * arrives inside `failsafeMs`, so a closed browser tab cannot leave it
+   * running. It also caps one continuous run at `maxRunMs` — the mechanism has
+   * no limit switches, so time is the only thing keeping it off its end stops.
+   *
+   * That cap is mirrored here rather than left to the firmware alone. The
+   * firmware is what actually protects the hardware; this copy exists so the
+   * readout and the recorder do not go on claiming the motor is running for
+   * seconds after the board has quietly parked it.
    */
   setMotor(dir) {
     const cfg = this.setup.motor;
     if (!cfg) throw new Error('no motor section in setup.json');
 
     // What the UI asked for — that is what the recorder and the readout mean.
-    const requested = this.state.estop ? 0 : Math.sign(Number(dir) || 0);
+    let requested = this.state.estop ? 0 : Math.sign(Number(dir) || 0);
+    const now = Date.now();
+    const maxRun = cfg.maxRunMs || 0;
+
+    if (requested !== 0 && requested === this._motorCappedDir) {
+      requested = 0;                    // still asking for the run we just capped
+    } else if (requested !== this._motorCappedDir) {
+      this._motorCappedDir = 0;         // anything else releases the latch
+    }
+
+    if (requested !== 0) {
+      if (requested !== this.state.motor.dir) this._motorRunStarted = now;
+      if (maxRun && now - this._motorRunStarted >= maxRun) {
+        this._motorCappedDir = requested;
+        requested = 0;
+      }
+    }
+
     // What goes on the wire, once a mirrored wiring job is accounted for.
     const wire = cfg.invert ? -requested : requested;
 
+    const capped = requested === 0 && this._motorCappedDir !== 0;
     this.state.motor = {
       dir: requested,
-      cmd: requested === 0 ? (this.state.estop ? 'estop' : 'stop') : requested > 0 ? 'cw' : 'ccw',
+      cmd: requested > 0 ? 'up'
+        : requested < 0 ? 'down'
+        : this.state.estop ? 'estop'
+        : capped ? 'capped'
+        : 'stop',
+      runMs: requested === 0 ? 0 : now - this._motorRunStarted,
+      maxRunMs: maxRun,
     };
 
     if (wire === 0) this.link.sendMotorStop(cfg.node);
@@ -166,11 +209,51 @@ class Controller {
     return this.state.motor;
   }
 
-  /** cmd: up (clockwise) | down (anticlockwise) | stop */
+  /** cmd: up | down | stop */
   motorCommand(cmd) {
     const dir = cmd === 'up' ? 1 : cmd === 'down' ? -1 : cmd === 'stop' ? 0 : null;
     if (dir === null) throw new Error(`unknown motor command "${cmd}"`);
     return this.setMotor(dir);
+  }
+
+  // ---------------------------------------------------------------- light --
+
+  /**
+   * The work light on the right-hand board. The firmware owns the animation —
+   * it ramps between levels on its own — so all that crosses the wire is the
+   * destination.
+   */
+  setLight(on) {
+    const cfg = this.setup.light;
+    if (!cfg) throw new Error('no light section in setup.json');
+
+    const want = !!on;
+    this.state.light = { on: want, cmd: want ? 'on' : 'off' };
+    this.link.sendLight(cfg.node, want);
+
+    this.onChange({ type: 'light', light: this.state.light });
+    this.onAction({ kind: 'light', on: want });
+    return this.state.light;
+  }
+
+  /** Replay the power-on greeting — blinks, then the slow ramp to full. */
+  lightSequence() {
+    const cfg = this.setup.light;
+    if (!cfg) throw new Error('no light section in setup.json');
+
+    this.state.light = { on: true, cmd: 'sequence' };
+    this.link.sendLightSequence(cfg.node);
+
+    this.onChange({ type: 'light', light: this.state.light });
+    this.onAction({ kind: 'light', on: true, sequence: true });
+    return this.state.light;
+  }
+
+  /** cmd: on | off | sequence */
+  lightCommand(cmd) {
+    if (cmd === 'sequence') return this.lightSequence();
+    if (cmd === 'on' || cmd === 'off') return this.setLight(cmd === 'on');
+    throw new Error(`unknown light command "${cmd}"`);
   }
 
   // ----------------------------------------------------------------- eyes --
@@ -197,11 +280,20 @@ class Controller {
       speed: patch.speed != null ? num(patch.speed, 1, 100, cur.speed) : cur.speed,
       blink: patch.blink != null ? !!patch.blink : cur.blink,
       auto: patch.auto != null ? !!patch.auto : cur.auto,
+      fx: patch.fx === 'dj' || patch.fx === 'none' ? patch.fx : cur.fx,
+      bpm: patch.bpm != null ? num(patch.bpm, 40, 200, cur.bpm) : cur.bpm,
     };
 
-    // Aiming the eyes by hand means you no longer want them wandering off.
-    if (patch.look != null) { next.swing = patch.swing != null ? next.swing : false; next.auto = false; }
-    if (patch.swing) next.auto = false;
+    /* Aiming the eyes by hand means you no longer want them wandering off —
+       unless the same patch says otherwise. An action's closing step centres
+       the gaze AND hands it back to the idle wander in one go, and without
+       this the explicit `auto: true` lost to the implied one. The Head tab's
+       look buttons never send `auto`, so their behaviour is unchanged. */
+    if (patch.look != null) {
+      next.swing = patch.swing != null ? next.swing : false;
+      if (patch.auto == null) next.auto = false;
+    }
+    if (patch.swing && patch.auto == null) next.auto = false;
 
     this.state.eyes = next;
     this.onChange({ type: 'eyes', eyes: next });
@@ -220,7 +312,8 @@ class Controller {
       // Releasing the stop clears the "blocked" label. Relabel rather than
       // re-command: the motor is already parked, and nothing should start
       // turning just because somebody un-armed the button.
-      this.state.motor = { dir: 0, cmd: 'stop' };
+      this._motorCappedDir = 0;
+      this.state.motor = { dir: 0, cmd: 'stop', runMs: 0, maxRunMs: this.setup.motor.maxRunMs || 0 };
       this.onChange({ type: 'motor', motor: this.state.motor });
     }
     this.onChange({ type: 'estop', estop: this.state.estop });

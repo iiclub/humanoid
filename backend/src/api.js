@@ -1,11 +1,14 @@
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
 const express = require('express');
 const setupStore = require('./setup');
 const joints = require('./joints');
 const { localIPv4 } = require('./udpLink');
+const { audioPathFor, removeAudioFor } = require('./actions');
 
-function buildApi({ setup, state, link, controller, recorder, sequencer, broadcast }) {
+function buildApi({ setup, state, link, controller, recorder, sequencer, actions, voice, broadcast, setVoiceAgent }) {
   const router = express.Router();
 
   const ok = (res, data) => res.json({ ok: true, ...data });
@@ -138,7 +141,7 @@ function buildApi({ setup, state, link, controller, recorder, sequencer, broadca
     }
   });
 
-  // ------------------------------------------------------------ aux motor --
+  // ----------------------------------------------------------- torso lift --
 
   /** { cmd: 'up' | 'down' | 'stop' } or { dir: 1 | -1 | 0 } */
   router.post('/motor', (req, res) => {
@@ -146,6 +149,19 @@ function buildApi({ setup, state, link, controller, recorder, sequencer, broadca
     try {
       if (dir != null) return ok(res, { motor: controller.setMotor(dir) });
       return ok(res, { motor: controller.motorCommand(cmd || 'stop') });
+    } catch (err) {
+      return fail(res, 400, err.message);
+    }
+  });
+
+  // ---------------------------------------------------------------- light --
+
+  /** { on: true|false } or { cmd: 'on' | 'off' | 'sequence' } */
+  router.post('/light', (req, res) => {
+    const { cmd, on } = req.body || {};
+    try {
+      if (on != null) return ok(res, { light: controller.setLight(on) });
+      return ok(res, { light: controller.lightCommand(cmd || 'off') });
     } catch (err) {
       return fail(res, 400, err.message);
     }
@@ -172,6 +188,154 @@ function buildApi({ setup, state, link, controller, recorder, sequencer, broadca
   router.get('/sequence', (_req, res) => ok(res, { sequence: sequencer.status() }));
 
   router.post('/estop', (req, res) => ok(res, { estop: controller.emergencyStop(req.body?.on ?? true) }));
+
+  // -------------------------------------------------------------- actions --
+
+  router.get('/actions', (_req, res) =>
+    ok(res, { actions: actions.catalogue, status: actions.status(),
+              audioFile: actions.audioFile, audioStamp: actions.audioStamp }));
+
+  router.post('/actions/stop', (_req, res) => ok(res, { status: actions.stop() }));
+
+  /**
+   * Re-read config/actions.json and config/dances.json from disk.
+   *
+   * Choreography is written by trying it, so the edit-reload-play loop has to
+   * be short. A restart would drop every NodeMCU's registration and mean
+   * walking back to the robot to power-cycle it.
+   */
+  router.post('/actions/reload', (_req, res) => {
+    try {
+      actions.reload();
+      broadcast({
+        type: 'actions',
+        actions: actions.catalogue,
+        action: actions.status(),
+        audioFile: actions.audioFile,
+      });
+      return ok(res, { actions: actions.catalogue, audioFile: actions.audioFile });
+    } catch (err) {
+      return fail(res, 400, err.message);
+    }
+  });
+
+  router.post('/actions/:id/run', (req, res) => {
+    try { return ok(res, { status: actions.run(req.params.id) }); }
+    catch (err) { return fail(res, 400, err.message); }
+  });
+
+  /** { on } — the talking head: speech recognition + Ollama on the phone. */
+  router.post('/voice-agent', (req, res) => ok(res, { voiceAgent: setVoiceAgent(req.body?.on ?? true) }));
+
+  /** { on } — the phone at /face listens to the room and drives the arms. */
+  router.post('/live', (req, res) => {
+    const on = req.body?.on ?? true;
+    broadcast({ type: 'live', on: !!on });
+    if (on) actions.stop();
+    return ok(res, { live: !!on });
+  });
+
+  // --------------------------------------------------------------- dances --
+
+  const catalogueChanged = () => broadcast({
+    type: 'actions',
+    actions: actions.catalogue,
+    action: actions.status(),
+    audioFile: actions.audioFile,
+    audioStamp: actions.audioStamp,
+  });
+
+  /**
+   * Add a dance — from the choreographer on the Dance tab, or an imported
+   * .json. Body is one dance object; it is sanitised, written into
+   * config/dances.json, and every client gets the new catalogue.
+   */
+  router.post('/dances', (req, res) => {
+    try {
+      const dance = actions.addDance(req.body);
+      catalogueChanged();
+      return ok(res, { dance, actions: actions.catalogue });
+    } catch (err) {
+      return fail(res, 400, err.message);
+    }
+  });
+
+  router.delete('/dances/:id', (req, res) => {
+    try {
+      actions.removeDance(req.params.id);
+      catalogueChanged();
+      return ok(res, { actions: actions.catalogue });
+    } catch (err) {
+      return fail(res, 400, err.message);
+    }
+  });
+
+  /**
+   * A dance's own music. Raw audio body in, `X-Filename` for the extension,
+   * saved as frontend/audio/<id>.<ext>. It lands on disk rather than in a
+   * blob URL so it survives a reload and so every device that opens the UI
+   * can play it, not just the phone that had the file.
+   *
+   * The extension is kept because express.static picks the Content-Type from
+   * it, and a phone will not decode an .m4a served as audio/mpeg. It is the
+   * only part of the client's filename that is used, and only after it has
+   * been matched against a short whitelist.
+   */
+  router.post('/dances/:id/audio', (req, res) => {
+    if (!Buffer.isBuffer(req.body) || !req.body.length) return fail(res, 400, 'empty body');
+    let target;
+    try { target = audioPathFor(req.params.id, req.get('x-filename')); }
+    catch (err) { return fail(res, 400, err.message); }
+
+    try {
+      fs.mkdirSync(path.dirname(target.abs), { recursive: true });
+      removeAudioFor(req.params.id);     // one file per dance, whatever the extension
+      fs.writeFileSync(target.abs, req.body);
+      const kb = Math.round(req.body.length / 1024);
+      catalogueChanged();          // carries the new audioStamp
+      return ok(res, { file: target.rel, bytes: req.body.length, note: `saved ${kb} kB to frontend/${target.rel}` });
+    } catch (err) {
+      return fail(res, 500, err.message);
+    }
+  });
+
+  // ---------------------------------------------------------------- voice --
+
+  router.get('/voice/health', async (_req, res) => {
+    try { return ok(res, await voice.health()); }
+    catch (err) { return fail(res, 500, err.message); }
+  });
+
+  /**
+   * Raw audio in (the browser posts the MediaRecorder blob as-is), transcript
+   * out. Kept separate from /voice/command so the UI can show what it heard
+   * before anything moves.
+   */
+  router.post('/voice/transcribe', async (req, res) => {
+    try {
+      const { text, ms } = await voice.transcribe(req.body);
+      return ok(res, { text, ms });
+    } catch (err) {
+      return fail(res, 503, err.message);
+    }
+  });
+
+  /**
+   * { text, run } — resolve a phrase to an action, and unless run is false,
+   * play it. Returns what was heard, what matched and how, so the UI can be
+   * honest about a keyword fallback rather than passing it off as the model.
+   */
+  router.post('/voice/command', async (req, res) => {
+    const { text, run = true } = req.body || {};
+    try {
+      const result = await voice.resolve(text);
+      if (result.action && run) result.status = actions.run(result.action);
+      const meta = actions.catalogue.find((a) => a.id === result.action);
+      return ok(res, { ...result, label: meta?.label || null, ran: !!(result.action && run) });
+    } catch (err) {
+      return fail(res, 400, err.message);
+    }
+  });
 
   // ------------------------------------------------------ record / play back --
 

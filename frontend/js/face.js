@@ -5,9 +5,12 @@
  *    tap to wake  ->  fullscreen  ->  listen  ->  /api/face/chat  ->  Ollama
  *                 ->  speak the reply  ->  listen again
  *
- *  Once awake the screen shows nothing but the eyes. There are no buttons, so
- *  the two manual actions live on gestures:
+ *  Once awake the screen shows the eyes and one small ⛶ button (bottom-right,
+ *  gone the moment fullscreen is on). Everything else lives on gestures:
  *
+ *    tap                   wake / start listening
+ *    ⛶ button              full screen — Chrome grants it only from a gesture,
+ *                          and can refuse a tap that is also doing other work
  *    long-press (600 ms)   take a photo
  *    double-tap            show/hide the status overlay
  *    (mute)                say "stop listening" / "start listening"
@@ -35,6 +38,7 @@ const el = {
 const app = {
   awake: false,
   listening: false,      // recogniser is running
+  agent: false,          // the control UI has switched the talking head on
   micEnabled: true,      // not muted by voice command
   busy: false,           // a chat round-trip or a photo is in flight
   speaking: false,
@@ -49,6 +53,7 @@ const app = {
   eyes: null,            // last remote eye state from the control UI
   gazeHeld: false,       // control UI is aiming the eyes; idle wander stands down
   swingTimer: null,
+  live: false,           // live dance owns the microphone; the recogniser stands down
   starting: false,       // a start() attempt is in the air (single-flight lock)
   startPending: false,   // start() called, waiting to see if onstart fires
   startTimer: null,
@@ -101,6 +106,67 @@ function touch() { app.lastActivity = Date.now(); }
 window.addEventListener('error', (e) => report('warn', `js error: ${e.message} @${e.lineno}`));
 window.addEventListener('unhandledrejection', (e) =>
   report('warn', `unhandled rejection: ${(e.reason && e.reason.message) || e.reason}`));
+
+// ------------------------------------------------------------- live dance
+
+/**
+ * The Dance tab's 🎤 Live button, at this end.
+ *
+ * js/livedance.js is an ES module and this file is a classic script, so there
+ * is no shared scope; the module publishes itself on window.liveDance and this
+ * calls into it. What lives HERE is only the part that belongs to the face:
+ * giving up the microphone and giving it back.
+ */
+async function setLive(on) {
+  const api = window.liveDance;
+  if (!api) { report('warn', 'live dance module not loaded'); return; }
+  if (on === app.live) return;
+
+  if (on) {
+    app.live = true;
+    stopRecognition();               // release the mic before asking for it again
+    await wait(250);                 // stopping a recogniser is not instant
+    setStatus('live dance', 'live');
+    openEyes();
+    const ok = await api.start({ onStatus: (t) => { touch(); setStatus(t, 'live'); } });
+    if (!ok) {
+      app.live = false;
+      setStatus('live dance: no mic', 'bad');
+      showHud(true);
+      /* Tell the server it did not take, or the Dance tab sits there lit red
+         claiming the robot is listening when it is not. */
+      try { liveSocket()?.send(JSON.stringify({ type: 'live', on: false })); } catch (_) {}
+      startRecognition();
+    }
+  } else {
+    api.stop();
+    app.live = false;
+    setStatus('', '');
+    setState('');
+    touch();
+    if (app.micEnabled && app.awake) startRecognition();
+  }
+  report('http', `live dance ${on ? 'started' : 'stopped'}`);
+}
+
+/**
+ * The Head tab's voice-agent switch, at this end. On: start listening if the
+ * page is awake (a page that is asleep starts when tapped, as before). Off:
+ * stop, and stay stopped — startRecognition() refuses while the flag is down,
+ * which is what keeps the watchdog from quietly re-arming it.
+ */
+function setAgent(on) {
+  if (on === app.agent) return;
+  app.agent = on;
+  if (on) {
+    if (app.awake && !app.live) { app.micEnabled = true; openEyes(); startRecognition(); }
+    else if (!app.awake) setStatus('voice agent on — tap to wake', '');
+  } else {
+    stopRecognition();
+    if (!app.live) { setStatus('voice agent off', ''); setState(''); }
+  }
+  report('http', `voice agent ${on ? 'on' : 'off'}`);
+}
 
 // -------------------------------------------------------------------- eyes
 
@@ -396,6 +462,14 @@ function buildRecognition() {
  * already starting is doing the same job.
  */
 function startRecognition(fromGesture = false) {
+  /* Live dance holds the microphone. Chrome for Android will hand the device
+     to SpeechRecognition and getUserMedia at the same time and then deliver
+     silence to one of them, so the two take turns rather than compete. */
+  if (app.live) return;
+  /* The voice agent is off until the Head tab turns it on. Nothing here may
+     start the recogniser before that — not a tap, not the watchdog, not a
+     "start listening" the phone happened to overhear. */
+  if (!app.agent) return;
   if (!app.recog || app.listening || !app.micEnabled || app.busy || app.speaking) return;
   if (app.starting) return;              // single flight — a start is already in the air
   app.starting = true;
@@ -712,6 +786,18 @@ function wireGestures() {
 
   el.stage.addEventListener('pointerdown', down);
   el.stage.addEventListener('pointerup', up);
+
+  /* The fullscreen button sits inside the stage, so its events would bubble
+     into the tap-to-talk handlers above and start the microphone. Swallow
+     them here, then make the request directly from the click — that is the
+     user gesture Chrome wants. */
+  const full = document.getElementById('btnFull');
+  if (full) {
+    for (const ev of ['pointerdown', 'pointerup', 'pointercancel']) {
+      full.addEventListener(ev, (e) => e.stopPropagation());
+    }
+    full.addEventListener('click', (e) => { e.stopPropagation(); goImmersive(); });
+  }
   el.stage.addEventListener('pointercancel', () => clearTimeout(pressTimer));
   el.stage.addEventListener('contextmenu', (e) => e.preventDefault());
 }
@@ -739,7 +825,7 @@ async function goImmersive() {
 
   try {
     if (screen.orientation && screen.orientation.lock) {
-      await screen.orientation.lock('portrait');
+      await screen.orientation.lock('landscape');   // the phone lies on its side in the head
     }
   } catch (_) { /* not permitted on most phones outside an installed PWA */ }
 
@@ -817,7 +903,9 @@ async function wake() {
   await speak('Oh good, another human. Ask me something.');
 
   app.recog = buildRecognition();
-  if (app.recog) {
+  if (!app.agent) {
+    setStatus('awake · voice agent off', '');
+  } else if (app.recog) {
     startRecognition(true);     // the tap that woke us is still the live gesture
   } else {
     setStatus('no microphone', 'bad');
@@ -836,6 +924,9 @@ async function wake() {
  * Reconnects on its own: this page is meant to sit in a robot's head for hours,
  * and a dropped socket must not mean going to fetch the phone.
  */
+let controlWs = null;
+const liveSocket = () => (controlWs && controlWs.readyState === 1 ? controlWs : null);
+
 function connectControl() {
   let ws;
   let retry = null;
@@ -852,11 +943,17 @@ function connectControl() {
     ws.onmessage = (ev) => {
       let msg;
       try { msg = JSON.parse(ev.data); } catch (_) { return; }
-      if (msg.type === 'hello' && msg.state && msg.state.eyes) applyEyes(msg.state.eyes);
-      else if (msg.type === 'eyes') applyEyes(msg.eyes);
+      if (msg.type === 'hello') {
+        if (msg.state && msg.state.eyes) applyEyes(msg.state.eyes);
+        setAgent(!!msg.voiceAgent);
+        if (msg.live) setLive(true);           // a dance was already running when we joined
+      } else if (msg.type === 'eyes') applyEyes(msg.eyes);
+      else if (msg.type === 'live') setLive(!!msg.on);
+      else if (msg.type === 'voiceagent') setAgent(!!msg.on);
     };
 
-    ws.onclose = () => { retry = setTimeout(open, 4000); };
+    controlWs = ws;
+    ws.onclose = () => { controlWs = null; retry = setTimeout(open, 4000); };
     ws.onerror = () => { try { ws.close(); } catch (_) {} };
   };
 
@@ -895,6 +992,17 @@ const GAZE_RANGE = 11;
 function applyEyes(eyes) {
   if (!eyes) return;
   app.eyes = eyes;
+
+  /* DJ mode, driven by the dance routines and by the Dance tab.
+     The class goes on <body>: setState() rebuilds .face's className outright,
+     so anything left there would be wiped the first time somebody spoke to the
+     robot mid-dance. Every DJ animation in face.css is written in multiples of
+     --beat-ms, so setting the one variable retimes the lot. */
+  document.body.classList.toggle('dj', eyes.fx === 'dj');
+  if (eyes.bpm) {
+    document.documentElement.style.setProperty(
+      '--beat-ms', `${Math.round(60000 / Math.max(40, Math.min(200, eyes.bpm)))}ms`);
+  }
 
   /* Switching blinking off mid-blink would leave the lids down until the
      next one, so clear any blink in flight. */
@@ -967,6 +1075,8 @@ setInterval(() => {
   if (!app.awake) return;
   const idle = Date.now() - app.lastActivity;
 
+  if (app.live) { touch(); return; }        // the dance is the activity
+
   if ((app.busy || app.speaking) && idle > 20000) {
     report('warn', `wedged ${Math.round(idle / 1000)}s (busy=${app.busy} speaking=${app.speaking}) — resetting`);
     app.busy = false;
@@ -978,7 +1088,7 @@ setInterval(() => {
     return;
   }
 
-  if (app.micEnabled && !app.busy && !app.speaking && !app.listening && !app.starting && idle > 8000) {
+  if (app.micEnabled && !app.live && !app.busy && !app.speaking && !app.listening && !app.starting && idle > 8000) {
     report('warn', `recogniser stopped ${Math.round(idle / 1000)}s ago — restarting`);
     touch();
     startRecognition();
@@ -999,6 +1109,11 @@ async function tapToTalk() {
 
   if (!app.awake) return wake();
   if (app.busy || app.speaking) return;      // mid-answer; let it finish
+
+  if (!app.agent) {                           // a tap wakes and goes fullscreen, nothing more
+    setStatus('voice agent off — Head tab turns it on', '');
+    return;
+  }
 
   if (app.listening) {                        // tapping again stops it
     app.micEnabled = false;

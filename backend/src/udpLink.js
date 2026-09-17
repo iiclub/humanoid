@@ -10,7 +10,9 @@ const EventEmitter = require('events');
  *   backend -> node   S|seq=42|0=90|2=140      set servo channel 0 to 90 deg, ch 2 to 140
  *   backend -> node   D|seq=42|l=900|r=-900    differential drive, -1023..1023 per side
  *   backend -> node   D|stop=1                 immediate stop
- *   backend -> node   M|seq=42|dir=1           aux motor: +1 clockwise, -1 anticlockwise, 0 stop
+ *   backend -> node   M|seq=42|dir=1           torso lift: +1 up, -1 down, 0 stop
+ *   backend -> node   L|seq=42|on=1            work light on (0 off)
+ *   backend -> node   L|seq=42|run=1           replay the power-on light sequence
  *   backend -> node   P|                       ping
  *   backend -> bcast  SRV|ip=192.168.1.20|port=4211|http=3000   "the laptop lives here"
  *
@@ -133,13 +135,22 @@ class UdpLink extends EventEmitter {
     return this.sendTo(nodeId, 'D', { stop: 1, l: 0, r: 0 });
   }
 
-  /** Aux motor (L298N, direction only): dir -1 / 0 / +1. */
+  /** Torso lift (L298N, direction only): dir -1 down / 0 stop / +1 up. */
   sendMotor(nodeId, dir) {
     return this.sendTo(nodeId, 'M', { dir: Math.sign(dir) || 0 });
   }
 
   sendMotorStop(nodeId) {
     return this.sendTo(nodeId, 'M', { dir: 0, stop: 1 });
+  }
+
+  sendLight(nodeId, on) {
+    return this.sendTo(nodeId, 'L', { on: on ? 1 : 0 });
+  }
+
+  /** Ask the node to replay its power-on sequence: blinks, then the slow ramp. */
+  sendLightSequence(nodeId) {
+    return this.sendTo(nodeId, 'L', { run: 1 });
   }
 
   _onMessage(msg, rinfo) {

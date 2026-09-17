@@ -14,8 +14,13 @@ class RobotState extends EventEmitter {
     this.devices = new Map();          // nodeId -> { id, ip, mac, fw, rssi, lastSeen, online }
     this.pose = joints.homePose(setup);
     this.drive = { left: 0, right: 0, cmd: 'stop', speed: setup.drive?.defaultSpeed ?? 900 };
-    // Aux motor: dir is -1 (anticlockwise) / 0 (stopped) / +1 (clockwise).
+    // Torso lift: dir is -1 (down) / 0 (stopped) / +1 (up).
     this.motor = { dir: 0, cmd: 'stop' };
+    /* The work light. Seeded from setup.light.startOn because the firmware
+       runs its power-on sequence on every boot and finishes with the light
+       lit — starting at `off` here would make the very first resync switch it
+       straight back off again. */
+    this.light = { on: setup.light ? setup.light.startOn !== false : false, cmd: 'boot' };
     /* The animated eyes on the phone face (/face). Nothing here reaches a
        servo — it is display state, mirrored to every connected face. */
     this.eyes = {
@@ -25,6 +30,12 @@ class RobotState extends EventEmitter {
       speed: 50,        // 1 slow … 100 fast, applies to swing and to the lids
       blink: true,      // the idle blink loop; false holds the lids still
       auto: true,       // idle saccades when nothing else is driving them
+      /* Display mode for the face. 'none' is the normal red-and-blue stare;
+         'dj' is the strobing, colour-cycling version the dance routines switch
+         on. `bpm` is what it pulses to, so the phone stays on the beat of
+         whatever is playing rather than on a hardcoded tempo. */
+      fx: 'none',       // none | dj
+      bpm: 102,         // 40..200, the beat the dj effect runs at
     };
     this.estop = false;
 
@@ -121,6 +132,7 @@ class RobotState extends EventEmitter {
       pose: { ...this.pose },
       drive: { ...this.drive },
       motor: { ...this.motor },
+      light: { ...this.light },
       eyes: { ...this.eyes },
       estop: this.estop,
       devices: this.deviceList(),

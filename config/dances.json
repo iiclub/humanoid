@@ -1,0 +1,2446 @@
+{
+  "version": 2,
+  "_about": {
+    "what": "Choreography. Same step grammar as actions.json — loaded by the same player into the same catalogue, tagged kind:\"dance\" so the UI gives them their own tab and the mic can still find them.",
+    "where_they_come_from": "Two ways. ⬇ Import on the Dance tab takes an .mp3 — you name it, trim it, press Create, and frontend/js/choreo.js writes the steps from the audio: beat grid from onset autocorrelation, energy per bar for how big the move is, pitch per bar for how high the arms and head go. Or ⬇ Import takes a .json in this shape, hand-written. Either way the result is appended to this file by the server, so it is here to edit afterwards.",
+    "tempo": "Every dwell is a whole number of beats. That is what puts the robot ON the music rather than near it.",
+    "why_so_slow": "This is a servo humanoid. The firmware slews each joint at its own SERVO_SPEED (120–180 °/s), so a step shorter than the travel time gets cut off mid-move and the next one starts from wherever the horn happened to be. Two beats is the honest floor for a big shoulder move; the generator uses four when the track is fast.",
+    "removing": "Long-press a routine's button on the Dance tab, then tap it again while it says remove. Its audio file goes with it."
+  },
+  "_fields": {
+    "id": "stable key, also what /api/actions/:id/run takes. Lowercase letters, digits, underscores.",
+    "label": "button text in the Dance tab — the whole button, nothing else is printed on it",
+    "bpm": "the beat the phone face pulses to while the routine plays",
+    "audio": "{ file, start, end } — file is relative to frontend/ and optional (falls back to _audio.file); start/end are seconds into it. Pressing the button seeks there, plays, and stops at end or when the routine does.",
+    "description": "one line of plain English. NOT shown on the button — this is what the language model reasons over when the mic has to pick a routine.",
+    "utterances": "example phrasings for the mic and the typed box",
+    "steps[].pose": "partial pose in travel % (0–100). Joints left out keep doing whatever they were doing. Arms: shoulder_x / shoulder_y / elbow only — wrist_z and gripper are dropped on import.",
+    "steps[].ms": "dwell — how long to hold before the next step starts",
+    "steps[].repeat": "with a nested steps array, repeats that block N times",
+    "steps[].eyes": "patch for the phone face at /face, e.g. { \"fx\": \"dj\", \"bpm\": 102 }",
+    "steps[].light": "true / false switches the work light mid-routine",
+    "steps[].motor": "up | down | stop — the torso lift",
+    "steps[].drive": "{ cmd, speed } | { left, right } | \"stop\" — the wheels. THE ROBOT MOVES ACROSS THE FLOOR. The generator never emits this.",
+    "steps[] as a plain string": "ignored by the player. JSON has no comments, and choreography is unreadable without them, so a bare string in a steps array is a section marker."
+  },
+  "_audio": {
+    "file": "audio/dakait-beat.mp3",
+    "what": "Default track for any routine that names no file of its own. An original instrumental built by tools/make-beat.js (npm run beat): 102 BPM, D hijaz, trap kick and 808. Imported .mp3s are saved next to it as audio/<id>.mp3 and are gitignored — they are somebody's recordings."
+  },
+  "_joint_cheatsheet": {
+    "arms": "THREE motors per arm and nothing else: shoulder_x, shoulder_y, elbow. Wrists and grippers are never used by a dance — the server strips them from anything imported, and the generator never writes them.",
+    "shoulder_x": "0 arm hanging at the side · 100 arm swung fully forward",
+    "shoulder_y": "0 down · 65 straight out sideways (T-pose) · 100 overhead",
+    "elbow": "0 straight · 100 fully folded",
+    "head_tilt": "0 chin fully up · 50 level · 100 chin on chest"
+  },
+  "dances": [
+    {
+      "id": "dakait_entry",
+      "label": "Rehman Dakait — Entry",
+      "bpm": 102,
+      "audio": {
+        "file": "audio/dakait_entry.mp3",
+        "start": 12,
+        "end": 48.5,
+        "_note": "your own copy of FA9LA, gitignored. Analysed at 102 BPM; the song is quiet until its first hit at ~16.5 s, so starting at 12.0 puts that hit under the reveal and the crown in the build that follows. If it drifts by ear, change start and press ↻ Reload. Delete the file and set file to audio/dakait-beat.mp3 to go back to the built-in beat."
+      },
+      "description": "The FA9LA entry: head bowed in the dark, a slow lift into the light, a left-right scan of the room, the chest-to-point signature on the hook, a shoulder-roll swagger, the wide crown pose with the head and light punching the beat, an elbow pump, and a slow walk-down back to rest. Runs about 36 seconds.",
+      "utterances": [
+        "rehman dakait",
+        "do the rehman dakait entry",
+        "fa9la",
+        "dhurandhar entry",
+        "entry song",
+        "do the entry",
+        "dakait entry",
+        "play the entry dance",
+        "make an entry",
+        "boss entry",
+        "sher e baloch"
+      ],
+      "steps": [
+        "--- A. arrival: bowed, dark, eyes shut. The DJ vibe starts before the robot does ---",
+        {
+          "pose": {
+            "right_shoulder_x": 0,
+            "right_shoulder_y": 0,
+            "right_elbow": 0,
+            "left_shoulder_x": 0,
+            "left_shoulder_y": 0,
+            "left_elbow": 0,
+            "head_tilt": 92
+          },
+          "eyes": {
+            "fx": "dj",
+            "bpm": 102,
+            "lids": "closed",
+            "blink": false,
+            "speed": 18,
+            "auto": false
+          },
+          "light": false,
+          "ms": 2352
+        },
+        {
+          "pose": {
+            "head_tilt": 64
+          },
+          "ms": 1176
+        },
+        "the reveal — head arrives level, lids come up slowly, work light snaps on",
+        {
+          "pose": {
+            "head_tilt": 38
+          },
+          "eyes": {
+            "lids": "open",
+            "speed": 22,
+            "blink": true
+          },
+          "light": true,
+          "ms": 1764
+        },
+        "--- B. the scan. No pan servo, so the EYES do the head turn ---",
+        {
+          "pose": {
+            "head_tilt": 34
+          },
+          "eyes": {
+            "look": -90,
+            "speed": 26
+          },
+          "ms": 1176
+        },
+        {
+          "eyes": {
+            "look": 90
+          },
+          "ms": 1176
+        },
+        {
+          "pose": {
+            "head_tilt": 46
+          },
+          "eyes": {
+            "look": 0
+          },
+          "ms": 1176
+        },
+        "--- C. the signature: forearm folded to the chest, then thrown out straight on the hook ---",
+        {
+          "pose": {
+            "right_shoulder_x": 42,
+            "right_shoulder_y": 30,
+            "right_elbow": 78,
+            "left_shoulder_x": 12,
+            "left_shoulder_y": 18,
+            "left_elbow": 30
+          },
+          "ms": 1764
+        },
+        {
+          "repeat": 2,
+          "steps": [
+            {
+              "pose": {
+                "right_shoulder_x": 70,
+                "right_elbow": 16,
+                "head_tilt": 34
+              },
+              "ms": 1176
+            },
+            {
+              "pose": {
+                "right_shoulder_x": 42,
+                "right_elbow": 78,
+                "head_tilt": 52
+              },
+              "ms": 1176
+            }
+          ]
+        },
+        "--- D. swagger: shoulders trade places, head rocks against them ---",
+        {
+          "repeat": 3,
+          "steps": [
+            {
+              "pose": {
+                "right_shoulder_x": 20,
+                "right_shoulder_y": 46,
+                "right_elbow": 62,
+                "left_shoulder_x": 20,
+                "left_shoulder_y": 16,
+                "left_elbow": 22,
+                "head_tilt": 40
+              },
+              "ms": 1176
+            },
+            {
+              "pose": {
+                "right_shoulder_y": 16,
+                "right_elbow": 22,
+                "left_shoulder_y": 46,
+                "left_elbow": 62,
+                "head_tilt": 56
+              },
+              "ms": 1176
+            }
+          ]
+        },
+        "--- E. the crown. Wide V, chin up, then the head and the light punch the beat ---",
+        {
+          "pose": {
+            "right_shoulder_x": 18,
+            "right_shoulder_y": 72,
+            "right_elbow": 24,
+            "left_shoulder_x": 18,
+            "left_shoulder_y": 72,
+            "left_elbow": 24,
+            "head_tilt": 28
+          },
+          "ms": 2352
+        },
+        {
+          "repeat": 3,
+          "steps": [
+            {
+              "pose": {
+                "head_tilt": 40
+              },
+              "light": false,
+              "ms": 588
+            },
+            {
+              "pose": {
+                "head_tilt": 26
+              },
+              "light": true,
+              "ms": 588
+            }
+          ]
+        },
+        {
+          "light": true,
+          "ms": 588
+        },
+        "--- F. the elbow pump: arms stay up, elbows fold and unfold against each other ---",
+        {
+          "repeat": 2,
+          "steps": [
+            {
+              "pose": {
+                "right_elbow": 80,
+                "left_elbow": 15
+              },
+              "ms": 882
+            },
+            {
+              "pose": {
+                "right_elbow": 15,
+                "left_elbow": 80
+              },
+              "ms": 882
+            }
+          ]
+        },
+        {
+          "pose": {
+            "right_elbow": 24,
+            "left_elbow": 24
+          },
+          "ms": 588
+        },
+        "--- G. walk-down ---",
+        {
+          "pose": {
+            "right_shoulder_x": 0,
+            "right_shoulder_y": 0,
+            "right_elbow": 0,
+            "left_shoulder_x": 0,
+            "left_shoulder_y": 0,
+            "left_elbow": 0,
+            "head_tilt": 40
+          },
+          "ms": 2352
+        },
+        {
+          "pose": {
+            "head_tilt": 50
+          },
+          "eyes": {
+            "look": 0,
+            "auto": true,
+            "blink": true,
+            "speed": 50,
+            "fx": "none"
+          },
+          "ms": 1176
+        }
+      ]
+    },
+    {
+      "id": "vaaraaniki_veyyi",
+      "label": "Vaaraaniki Veyyi",
+      "bpm": 125,
+      "audio": {
+        "file": "audio/vaaraaniki_veyyi.mp3",
+        "start": 0,
+        "end": 35
+      },
+      "description": "Auto-choreographed from Vaaraaniki Veyyi — Hellallallo (Peddi) — 18 bars at 125 BPM, about 37 seconds. Moves sized by loudness, lifted by pitch.",
+      "utterances": [
+        "vaaraaniki veyyi",
+        "hellallallo",
+        "peddi",
+        "peddi song",
+        "telugu song",
+        "dance to peddi",
+        "vaaraniki veyyi"
+      ],
+      "steps": [
+        "--- arrival · 125 BPM, 18 bars, arm unit 958 ms ---",
+        {
+          "ms": 810,
+          "pose": {
+            "right_shoulder_x": 0,
+            "right_shoulder_y": 0,
+            "right_elbow": 0,
+            "left_shoulder_x": 0,
+            "left_shoulder_y": 0,
+            "left_elbow": 0,
+            "head_tilt": 92
+          },
+          "light": false,
+          "eyes": {
+            "look": 0,
+            "lids": "closed",
+            "speed": 18,
+            "blink": false,
+            "auto": false,
+            "fx": "dj",
+            "bpm": 125
+          }
+        },
+        "--- reveal ---",
+        {
+          "ms": 958,
+          "pose": {
+            "head_tilt": 38
+          },
+          "light": true,
+          "eyes": {
+            "lids": "open",
+            "speed": 30,
+            "blink": true
+          }
+        },
+        {
+          "ms": 958,
+          "pose": {
+            "head_tilt": 46
+          },
+          "eyes": {
+            "look": -80,
+            "speed": 30
+          }
+        },
+        "bar 2 · drift · energy 0.18 pitch 0.18",
+        {
+          "ms": 958,
+          "pose": {
+            "right_shoulder_x": 24,
+            "right_elbow": 30,
+            "left_shoulder_x": 24,
+            "left_elbow": 30,
+            "right_shoulder_y": 10,
+            "left_shoulder_y": 10,
+            "head_tilt": 56
+          },
+          "eyes": {
+            "look": -70
+          }
+        },
+        {
+          "ms": 958,
+          "eyes": {
+            "look": 70
+          }
+        },
+        "bar 3 · hands_up · energy 0.76 pitch 0.65 · ACCENT",
+        {
+          "ms": 958,
+          "pose": {
+            "right_shoulder_x": 0,
+            "right_shoulder_y": 100,
+            "right_elbow": 70,
+            "left_shoulder_x": 0,
+            "left_shoulder_y": 100,
+            "left_elbow": 20,
+            "head_tilt": 20
+          },
+          "light": false
+        },
+        {
+          "ms": 479,
+          "light": true
+        },
+        {
+          "ms": 479,
+          "pose": {
+            "right_elbow": 20,
+            "left_elbow": 70
+          }
+        },
+        "bar 4 · sway · energy 0.24 pitch 0.29 · ACCENT",
+        {
+          "ms": 958,
+          "pose": {
+            "right_shoulder_x": 10,
+            "right_shoulder_y": 19,
+            "right_elbow": 40,
+            "left_shoulder_x": 10,
+            "left_shoulder_y": 1,
+            "left_elbow": 20,
+            "head_tilt": 41
+          },
+          "light": false
+        },
+        {
+          "ms": 479,
+          "light": true
+        },
+        {
+          "ms": 479,
+          "pose": {
+            "right_shoulder_y": 1,
+            "right_elbow": 20,
+            "left_shoulder_y": 19,
+            "left_elbow": 40,
+            "head_tilt": 65
+          }
+        },
+        "bar 5 · nod · energy 0.29 pitch 0.35",
+        {
+          "ms": 958,
+          "pose": {
+            "head_tilt": 64
+          },
+          "eyes": {
+            "look": 80,
+            "speed": 40
+          }
+        },
+        {
+          "ms": 958,
+          "pose": {
+            "head_tilt": 42
+          }
+        },
+        "bar 6 · swagger · energy 0.47 pitch 0.41",
+        {
+          "ms": 958,
+          "pose": {
+            "right_shoulder_x": 20,
+            "right_shoulder_y": 44,
+            "right_elbow": 62,
+            "left_shoulder_x": 20,
+            "left_shoulder_y": 14,
+            "left_elbow": 22,
+            "head_tilt": 44
+          }
+        },
+        {
+          "ms": 958,
+          "pose": {
+            "right_shoulder_y": 14,
+            "right_elbow": 22,
+            "left_shoulder_y": 44,
+            "left_elbow": 62,
+            "head_tilt": 58
+          }
+        },
+        "bar 7 · swagger · energy 0.59 pitch 0.71",
+        {
+          "ms": 958,
+          "pose": {
+            "right_shoulder_x": 20,
+            "right_shoulder_y": 57,
+            "right_elbow": 62,
+            "left_shoulder_x": 20,
+            "left_shoulder_y": 27,
+            "left_elbow": 22,
+            "head_tilt": 31
+          }
+        },
+        {
+          "ms": 958,
+          "pose": {
+            "right_shoulder_y": 27,
+            "right_elbow": 22,
+            "left_shoulder_y": 57,
+            "left_elbow": 62,
+            "head_tilt": 45
+          }
+        },
+        "bar 8 · point · energy 0.35 pitch 0.47",
+        {
+          "ms": 958,
+          "pose": {
+            "right_shoulder_x": 42,
+            "right_shoulder_y": 23,
+            "right_elbow": 78,
+            "left_shoulder_x": 12,
+            "left_shoulder_y": 11,
+            "left_elbow": 30,
+            "head_tilt": 57
+          }
+        },
+        {
+          "ms": 958,
+          "pose": {
+            "right_shoulder_x": 70,
+            "right_elbow": 16,
+            "head_tilt": 43
+          }
+        },
+        "bar 9 · hands_up · energy 0.71 pitch 0.82",
+        {
+          "ms": 958,
+          "pose": {
+            "right_shoulder_x": 0,
+            "right_shoulder_y": 100,
+            "right_elbow": 70,
+            "left_shoulder_x": 0,
+            "left_shoulder_y": 100,
+            "left_elbow": 20,
+            "head_tilt": 16
+          },
+          "eyes": {
+            "look": -80,
+            "speed": 40
+          }
+        },
+        {
+          "ms": 958,
+          "pose": {
+            "right_elbow": 20,
+            "left_elbow": 70
+          }
+        },
+        "bar 10 · pump · energy 0.88 pitch 0.00",
+        {
+          "ms": 958,
+          "pose": {
+            "right_shoulder_x": 10,
+            "right_shoulder_y": 56,
+            "right_elbow": 60,
+            "left_shoulder_x": 10,
+            "left_shoulder_y": 2,
+            "left_elbow": 20,
+            "head_tilt": 58
+          }
+        },
+        {
+          "ms": 958,
+          "pose": {
+            "right_shoulder_y": 2,
+            "right_elbow": 20,
+            "left_shoulder_y": 56,
+            "left_elbow": 60,
+            "head_tilt": 76
+          }
+        },
+        "bar 11 · hands_up · energy 0.82 pitch 1.00",
+        {
+          "ms": 958,
+          "pose": {
+            "right_shoulder_x": 0,
+            "right_shoulder_y": 100,
+            "right_elbow": 70,
+            "left_shoulder_x": 0,
+            "left_shoulder_y": 100,
+            "left_elbow": 20,
+            "head_tilt": 12
+          }
+        },
+        {
+          "ms": 958,
+          "pose": {
+            "right_elbow": 20,
+            "left_elbow": 70
+          }
+        },
+        "bar 12 · sway · energy 0.12 pitch 0.53",
+        {
+          "ms": 958,
+          "pose": {
+            "right_shoulder_x": 10,
+            "right_shoulder_y": 25,
+            "right_elbow": 40,
+            "left_shoulder_x": 10,
+            "left_shoulder_y": 7,
+            "left_elbow": 20,
+            "head_tilt": 51
+          }
+        },
+        {
+          "ms": 958,
+          "pose": {
+            "right_shoulder_y": 7,
+            "right_elbow": 20,
+            "left_shoulder_y": 25,
+            "left_elbow": 40,
+            "head_tilt": 59
+          }
+        },
+        "bar 13 · drift · energy 0.00 pitch 0.88",
+        {
+          "ms": 958,
+          "pose": {
+            "right_shoulder_x": 24,
+            "right_elbow": 30,
+            "left_shoulder_x": 24,
+            "left_elbow": 30,
+            "right_shoulder_y": 33,
+            "left_shoulder_y": 33,
+            "head_tilt": 33
+          },
+          "eyes": {
+            "look": 80,
+            "speed": 40
+          }
+        },
+        {
+          "ms": 958,
+          "eyes": {
+            "look": 70
+          }
+        },
+        "bar 14 · drift · energy 0.06 pitch 0.76",
+        {
+          "ms": 958,
+          "pose": {
+            "right_shoulder_x": 24,
+            "right_elbow": 30,
+            "left_shoulder_x": 24,
+            "left_elbow": 30,
+            "right_shoulder_y": 18,
+            "left_shoulder_y": 18,
+            "head_tilt": 48
+          },
+          "eyes": {
+            "look": -70
+          }
+        },
+        {
+          "ms": 958,
+          "eyes": {
+            "look": 70
+          }
+        },
+        "bar 15 · pump · energy 0.94 pitch 0.59",
+        {
+          "ms": 958,
+          "pose": {
+            "right_shoulder_x": 10,
+            "right_shoulder_y": 70,
+            "right_elbow": 60,
+            "left_shoulder_x": 10,
+            "left_shoulder_y": 16,
+            "left_elbow": 20,
+            "head_tilt": 44
+          }
+        },
+        {
+          "ms": 958,
+          "pose": {
+            "right_shoulder_y": 16,
+            "right_elbow": 20,
+            "left_shoulder_y": 70,
+            "left_elbow": 60,
+            "head_tilt": 62
+          }
+        },
+        "bar 16 · elbows · energy 0.65 pitch 0.06",
+        {
+          "ms": 958,
+          "pose": {
+            "right_shoulder_x": 30,
+            "left_shoulder_x": 30,
+            "right_shoulder_y": 7,
+            "left_shoulder_y": 7,
+            "right_elbow": 80,
+            "left_elbow": 15,
+            "head_tilt": 63
+          }
+        },
+        {
+          "ms": 958,
+          "pose": {
+            "right_elbow": 15,
+            "left_elbow": 80
+          }
+        },
+        "bar 17 · crown · energy 1.00 pitch 0.94",
+        {
+          "ms": 958,
+          "pose": {
+            "right_shoulder_x": 18,
+            "right_shoulder_y": 89,
+            "right_elbow": 24,
+            "left_shoulder_x": 18,
+            "left_shoulder_y": 89,
+            "left_elbow": 24,
+            "head_tilt": 11
+          },
+          "eyes": {
+            "look": -80,
+            "speed": 40
+          }
+        },
+        {
+          "ms": 479,
+          "pose": {
+            "head_tilt": 23
+          },
+          "light": false
+        },
+        {
+          "ms": 479,
+          "pose": {
+            "head_tilt": 9
+          },
+          "light": true
+        },
+        "bar 18 · swagger · energy 0.53 pitch 0.24",
+        {
+          "ms": 958,
+          "pose": {
+            "right_shoulder_x": 20,
+            "right_shoulder_y": 34,
+            "right_elbow": 62,
+            "left_shoulder_x": 20,
+            "left_shoulder_y": 4,
+            "left_elbow": 22,
+            "head_tilt": 54
+          }
+        },
+        {
+          "ms": 958,
+          "pose": {
+            "right_shoulder_y": 4,
+            "right_elbow": 22,
+            "left_shoulder_y": 34,
+            "left_elbow": 62,
+            "head_tilt": 68
+          }
+        },
+        "--- out ---",
+        {
+          "ms": 958,
+          "pose": {
+            "right_shoulder_x": 0,
+            "right_shoulder_y": 0,
+            "right_elbow": 0,
+            "left_shoulder_x": 0,
+            "left_shoulder_y": 0,
+            "left_elbow": 0,
+            "head_tilt": 40
+          },
+          "eyes": {
+            "look": 0,
+            "speed": 40
+          }
+        },
+        {
+          "ms": 479,
+          "pose": {
+            "head_tilt": 50
+          },
+          "light": true,
+          "eyes": {
+            "look": 0,
+            "speed": 50,
+            "blink": true,
+            "auto": true,
+            "fx": "none"
+          }
+        }
+      ]
+    },
+    {
+      "id": "nagula_katta",
+      "label": "Nagula Katta",
+      "bpm": 84,
+      "audio": {
+        "file": "audio/nagula_katta.mp3",
+        "start": 0,
+        "end": 25.8
+      },
+      "description": "Auto-choreographed from Yesha — Nagula Katta Meeda (Paradise) — 9 bars at 84 BPM, about 28 seconds. Moves sized by loudness, lifted by pitch.",
+      "utterances": [
+        "nagula katta",
+        "yesha",
+        "nagula katta meeda",
+        "paradise",
+        "paradise song",
+        "ringtone dance",
+        "nagula"
+      ],
+      "steps": [
+        "--- arrival · 84 BPM, 9 bars, arm unit 1428 ms ---",
+        {
+          "ms": 300,
+          "pose": {
+            "right_shoulder_x": 0,
+            "right_shoulder_y": 0,
+            "right_elbow": 0,
+            "left_shoulder_x": 0,
+            "left_shoulder_y": 0,
+            "left_elbow": 0,
+            "head_tilt": 92
+          },
+          "light": false,
+          "eyes": {
+            "look": 0,
+            "lids": "closed",
+            "speed": 18,
+            "blink": false,
+            "auto": false,
+            "fx": "dj",
+            "bpm": 84
+          }
+        },
+        "--- reveal ---",
+        {
+          "ms": 1428,
+          "pose": {
+            "head_tilt": 38
+          },
+          "light": true,
+          "eyes": {
+            "lids": "open",
+            "speed": 30,
+            "blink": true
+          }
+        },
+        {
+          "ms": 1428,
+          "pose": {
+            "head_tilt": 46
+          },
+          "eyes": {
+            "look": -80,
+            "speed": 30
+          }
+        },
+        "bar 2 · drift · energy 0.13 pitch 0.88",
+        {
+          "ms": 1428,
+          "pose": {
+            "right_shoulder_x": 24,
+            "right_elbow": 30,
+            "left_shoulder_x": 24,
+            "left_elbow": 30,
+            "right_shoulder_y": 33,
+            "left_shoulder_y": 33,
+            "head_tilt": 33
+          },
+          "eyes": {
+            "look": -70
+          }
+        },
+        {
+          "ms": 1428,
+          "eyes": {
+            "look": 70
+          }
+        },
+        "bar 3 · swagger · energy 0.63 pitch 0.13",
+        {
+          "ms": 1428,
+          "pose": {
+            "right_shoulder_x": 20,
+            "right_shoulder_y": 31,
+            "right_elbow": 62,
+            "left_shoulder_x": 20,
+            "left_shoulder_y": 1,
+            "left_elbow": 22,
+            "head_tilt": 57
+          }
+        },
+        {
+          "ms": 1428,
+          "pose": {
+            "right_shoulder_y": 1,
+            "right_elbow": 22,
+            "left_shoulder_y": 31,
+            "left_elbow": 62,
+            "head_tilt": 71
+          }
+        },
+        "bar 4 · elbows · energy 0.50 pitch 0.25",
+        {
+          "ms": 1428,
+          "pose": {
+            "right_shoulder_x": 30,
+            "left_shoulder_x": 30,
+            "right_shoulder_y": 18,
+            "left_shoulder_y": 18,
+            "right_elbow": 80,
+            "left_elbow": 15,
+            "head_tilt": 52
+          }
+        },
+        {
+          "ms": 1428,
+          "pose": {
+            "right_elbow": 15,
+            "left_elbow": 80
+          }
+        },
+        "bar 5 · hands_up · energy 1.00 pitch 0.38 · ACCENT",
+        {
+          "ms": 1428,
+          "pose": {
+            "right_shoulder_x": 0,
+            "right_shoulder_y": 93,
+            "right_elbow": 70,
+            "left_shoulder_x": 0,
+            "left_shoulder_y": 93,
+            "left_elbow": 20,
+            "head_tilt": 33
+          },
+          "light": false,
+          "eyes": {
+            "look": 80,
+            "speed": 40
+          }
+        },
+        {
+          "ms": 714,
+          "light": true
+        },
+        {
+          "ms": 714,
+          "pose": {
+            "right_elbow": 20,
+            "left_elbow": 70
+          }
+        },
+        "bar 6 · hands_up · energy 0.88 pitch 0.50",
+        {
+          "ms": 1428,
+          "pose": {
+            "right_shoulder_x": 0,
+            "right_shoulder_y": 96,
+            "right_elbow": 70,
+            "left_shoulder_x": 0,
+            "left_shoulder_y": 96,
+            "left_elbow": 20,
+            "head_tilt": 30
+          }
+        },
+        {
+          "ms": 1428,
+          "pose": {
+            "right_elbow": 20,
+            "left_elbow": 70
+          }
+        },
+        "bar 7 · drift · energy 0.00 pitch 1.00",
+        {
+          "ms": 1428,
+          "pose": {
+            "right_shoulder_x": 24,
+            "right_elbow": 30,
+            "left_shoulder_x": 24,
+            "left_elbow": 30,
+            "right_shoulder_y": 36,
+            "left_shoulder_y": 36,
+            "head_tilt": 30
+          },
+          "eyes": {
+            "look": -70
+          }
+        },
+        {
+          "ms": 1428,
+          "eyes": {
+            "look": 70
+          }
+        },
+        "bar 8 · pump · energy 0.75 pitch 0.63",
+        {
+          "ms": 1428,
+          "pose": {
+            "right_shoulder_x": 10,
+            "right_shoulder_y": 71,
+            "right_elbow": 60,
+            "left_shoulder_x": 10,
+            "left_shoulder_y": 17,
+            "left_elbow": 20,
+            "head_tilt": 43
+          }
+        },
+        {
+          "ms": 1428,
+          "pose": {
+            "right_shoulder_y": 17,
+            "right_elbow": 20,
+            "left_shoulder_y": 71,
+            "left_elbow": 60,
+            "head_tilt": 61
+          }
+        },
+        "bar 9 · elbows · energy 0.38 pitch 0.75",
+        {
+          "ms": 1428,
+          "pose": {
+            "right_shoulder_x": 30,
+            "left_shoulder_x": 30,
+            "right_shoulder_y": 30,
+            "left_shoulder_y": 30,
+            "right_elbow": 80,
+            "left_elbow": 15,
+            "head_tilt": 40
+          },
+          "eyes": {
+            "look": -80,
+            "speed": 40
+          }
+        },
+        {
+          "ms": 1428,
+          "pose": {
+            "right_elbow": 15,
+            "left_elbow": 80
+          }
+        },
+        "--- out ---",
+        {
+          "ms": 1428,
+          "pose": {
+            "right_shoulder_x": 0,
+            "right_shoulder_y": 0,
+            "right_elbow": 0,
+            "left_shoulder_x": 0,
+            "left_shoulder_y": 0,
+            "left_elbow": 0,
+            "head_tilt": 40
+          },
+          "eyes": {
+            "look": 0,
+            "speed": 40
+          }
+        },
+        {
+          "ms": 714,
+          "pose": {
+            "head_tilt": 50
+          },
+          "light": true,
+          "eyes": {
+            "look": 0,
+            "speed": 50,
+            "blink": true,
+            "auto": true,
+            "fx": "none"
+          }
+        }
+      ]
+    },
+    {
+      "id": "shararat",
+      "label": "Shararat",
+      "bpm": 131,
+      "audio": {
+        "file": "audio/shararat.mp3",
+        "start": 0,
+        "end": 23.8
+      },
+      "description": "Hand-choreographed to Shararat from Dhurandhar at 131 BPM — a four-beat hook phrase thrown out and pulled back with the arms alternating, a slow tease through the quiet middle, an elbow shimmy, then the hook again into a both-arms-up finish. Written in the style of the song, NOT copied from the film's choreography.",
+      "utterances": [
+        "shararat",
+        "do the shararat",
+        "shararat dance",
+        "dhurandhar shararat",
+        "item song",
+        "shararat step",
+        "tenu shararat"
+      ],
+      "steps": [
+        "--- A. hook. The clip opens on the loudest bars, so the robot does too ---",
+        {
+          "ms": 916,
+          "pose": {
+            "right_shoulder_x": 10,
+            "right_shoulder_y": 15,
+            "right_elbow": 40,
+            "left_shoulder_x": 10,
+            "left_shoulder_y": 15,
+            "left_elbow": 40,
+            "head_tilt": 46
+          },
+          "light": true,
+          "eyes": {
+            "look": 0,
+            "lids": "open",
+            "speed": 55,
+            "blink": true,
+            "auto": false,
+            "fx": "dj",
+            "bpm": 131
+          }
+        },
+        {
+          "ms": 916,
+          "pose": {
+            "right_shoulder_x": 62,
+            "right_shoulder_y": 52,
+            "right_elbow": 18,
+            "left_shoulder_x": 14,
+            "left_shoulder_y": 18,
+            "left_elbow": 48,
+            "head_tilt": 34
+          }
+        },
+        {
+          "ms": 916,
+          "pose": {
+            "right_shoulder_x": 28,
+            "right_shoulder_y": 30,
+            "right_elbow": 78,
+            "left_shoulder_x": 38,
+            "left_shoulder_y": 46,
+            "left_elbow": 26,
+            "head_tilt": 54
+          }
+        },
+        {
+          "ms": 916,
+          "pose": {
+            "right_shoulder_x": 14,
+            "right_shoulder_y": 18,
+            "right_elbow": 48,
+            "left_shoulder_x": 62,
+            "left_shoulder_y": 52,
+            "left_elbow": 18,
+            "head_tilt": 34
+          }
+        },
+        {
+          "ms": 916,
+          "pose": {
+            "right_shoulder_x": 38,
+            "right_shoulder_y": 46,
+            "right_elbow": 26,
+            "left_shoulder_x": 28,
+            "left_shoulder_y": 30,
+            "left_elbow": 78,
+            "head_tilt": 54
+          }
+        },
+        {
+          "ms": 916,
+          "pose": {
+            "right_shoulder_x": 62,
+            "right_shoulder_y": 52,
+            "right_elbow": 18,
+            "left_shoulder_x": 14,
+            "left_shoulder_y": 18,
+            "left_elbow": 48,
+            "head_tilt": 30
+          }
+        },
+        {
+          "ms": 916,
+          "pose": {
+            "right_shoulder_x": 28,
+            "right_shoulder_y": 30,
+            "right_elbow": 78,
+            "left_shoulder_x": 38,
+            "left_shoulder_y": 46,
+            "left_elbow": 26,
+            "head_tilt": 50
+          }
+        },
+        {
+          "ms": 916,
+          "pose": {
+            "right_shoulder_x": 14,
+            "right_shoulder_y": 18,
+            "right_elbow": 48,
+            "left_shoulder_x": 62,
+            "left_shoulder_y": 52,
+            "left_elbow": 18,
+            "head_tilt": 30
+          }
+        },
+        {
+          "ms": 916,
+          "pose": {
+            "right_shoulder_x": 38,
+            "right_shoulder_y": 46,
+            "right_elbow": 26,
+            "left_shoulder_x": 28,
+            "left_shoulder_y": 30,
+            "left_elbow": 78,
+            "head_tilt": 50
+          }
+        },
+        "--- B. tease. The track goes quiet at ~8 s — big slow weight shifts, eyes doing the looking ---",
+        {
+          "ms": 1832,
+          "pose": {
+            "right_shoulder_x": 20,
+            "right_shoulder_y": 36,
+            "right_elbow": 58,
+            "left_shoulder_x": 8,
+            "left_shoulder_y": 12,
+            "left_elbow": 22,
+            "head_tilt": 40
+          },
+          "eyes": {
+            "look": -80,
+            "speed": 40
+          }
+        },
+        {
+          "ms": 1832,
+          "pose": {
+            "right_shoulder_x": 8,
+            "right_shoulder_y": 12,
+            "right_elbow": 22,
+            "left_shoulder_x": 20,
+            "left_shoulder_y": 36,
+            "left_elbow": 58,
+            "head_tilt": 56
+          },
+          "eyes": {
+            "look": 80
+          }
+        },
+        {
+          "ms": 1832,
+          "pose": {
+            "right_shoulder_x": 26,
+            "right_shoulder_y": 44,
+            "right_elbow": 50,
+            "left_shoulder_x": 26,
+            "left_shoulder_y": 44,
+            "left_elbow": 50,
+            "head_tilt": 32
+          },
+          "eyes": {
+            "look": 0
+          }
+        },
+        {
+          "ms": 1832,
+          "pose": {
+            "right_shoulder_x": 12,
+            "right_shoulder_y": 18,
+            "right_elbow": 34,
+            "left_shoulder_x": 12,
+            "left_shoulder_y": 18,
+            "left_elbow": 34,
+            "head_tilt": 50
+          }
+        },
+        "--- C. shimmy. Elbows alone — the only joint that can turn around inside one beat at 131 BPM ---",
+        {
+          "ms": 458,
+          "pose": {
+            "right_elbow": 75,
+            "left_elbow": 20,
+            "head_tilt": 42
+          }
+        },
+        {
+          "ms": 458,
+          "pose": {
+            "right_elbow": 20,
+            "left_elbow": 75,
+            "head_tilt": 52
+          }
+        },
+        {
+          "ms": 458,
+          "pose": {
+            "right_elbow": 75,
+            "left_elbow": 20,
+            "head_tilt": 42
+          }
+        },
+        {
+          "ms": 458,
+          "pose": {
+            "right_elbow": 20,
+            "left_elbow": 75,
+            "head_tilt": 52
+          }
+        },
+        {
+          "ms": 458,
+          "pose": {
+            "right_elbow": 75,
+            "left_elbow": 20,
+            "head_tilt": 42
+          }
+        },
+        {
+          "ms": 458,
+          "pose": {
+            "right_elbow": 20,
+            "left_elbow": 75,
+            "head_tilt": 52
+          }
+        },
+        {
+          "ms": 458,
+          "pose": {
+            "right_elbow": 75,
+            "left_elbow": 20,
+            "head_tilt": 42
+          }
+        },
+        {
+          "ms": 458,
+          "pose": {
+            "right_elbow": 20,
+            "left_elbow": 75,
+            "head_tilt": 52
+          }
+        },
+        "--- D. hook returns as the track builds back ---",
+        {
+          "ms": 916,
+          "pose": {
+            "right_shoulder_x": 62,
+            "right_shoulder_y": 52,
+            "right_elbow": 18,
+            "left_shoulder_x": 14,
+            "left_shoulder_y": 18,
+            "left_elbow": 48,
+            "head_tilt": 30
+          }
+        },
+        {
+          "ms": 916,
+          "pose": {
+            "right_shoulder_x": 28,
+            "right_shoulder_y": 30,
+            "right_elbow": 78,
+            "left_shoulder_x": 38,
+            "left_shoulder_y": 46,
+            "left_elbow": 26,
+            "head_tilt": 48
+          }
+        },
+        {
+          "ms": 916,
+          "pose": {
+            "right_shoulder_x": 14,
+            "right_shoulder_y": 18,
+            "right_elbow": 48,
+            "left_shoulder_x": 62,
+            "left_shoulder_y": 52,
+            "left_elbow": 18,
+            "head_tilt": 30
+          }
+        },
+        {
+          "ms": 916,
+          "pose": {
+            "right_shoulder_x": 38,
+            "right_shoulder_y": 46,
+            "right_elbow": 26,
+            "left_shoulder_x": 28,
+            "left_shoulder_y": 30,
+            "left_elbow": 78,
+            "head_tilt": 48
+          }
+        },
+        "--- E. finish: both arms up, chin up, light punches the last beat ---",
+        {
+          "ms": 458,
+          "pose": {
+            "right_shoulder_x": 16,
+            "right_shoulder_y": 78,
+            "right_elbow": 22,
+            "left_shoulder_x": 16,
+            "left_shoulder_y": 78,
+            "left_elbow": 22,
+            "head_tilt": 26
+          },
+          "light": false
+        },
+        {
+          "ms": 458,
+          "pose": {
+            "head_tilt": 22
+          },
+          "light": true
+        },
+        "--- out ---",
+        {
+          "ms": 1374,
+          "pose": {
+            "right_shoulder_x": 0,
+            "right_shoulder_y": 0,
+            "right_elbow": 0,
+            "left_shoulder_x": 0,
+            "left_shoulder_y": 0,
+            "left_elbow": 0,
+            "head_tilt": 40
+          },
+          "eyes": {
+            "look": 0,
+            "speed": 50,
+            "blink": true,
+            "auto": true,
+            "fx": "none"
+          }
+        }
+      ]
+    },
+    {
+      "id": "basinga_balalu",
+      "label": "Basinga Balalu",
+      "bpm": 122,
+      "audio": {
+        "file": "audio/basinga_balalu.mp3",
+        "start": 0,
+        "end": 21.1
+      },
+      "description": "Hand-choreographed to Basinga Balalu at 122 BPM, in the Telangana folk wedding style the song belongs to — dappu-driven claps with the arms swinging in to meet and open again, a both-arms-up hit on the loudest onset, circular alternating arcs through the hook, then a wind-down as the track empties. Character sourced from how the song is danced; the exact steps are not copied from any video.",
+      "utterances": [
+        "basinga balalu",
+        "basinga",
+        "balalu",
+        "folk song",
+        "wedding song",
+        "telugu folk",
+        "banjara song",
+        "dappu"
+      ],
+      "steps": [
+        "--- lead-in. First downbeat lands at 1.55 s; hold the opening pose until then ---",
+        {
+          "ms": 1550,
+          "pose": {
+            "right_shoulder_x": 12,
+            "right_shoulder_y": 16,
+            "right_elbow": 30,
+            "left_shoulder_x": 12,
+            "left_shoulder_y": 16,
+            "left_elbow": 30,
+            "head_tilt": 48
+          },
+          "light": true,
+          "eyes": {
+            "look": 0,
+            "lids": "open",
+            "speed": 55,
+            "blink": true,
+            "auto": false,
+            "fx": "dj",
+            "bpm": 122
+          }
+        },
+        "--- A. the clap: arms swing in to meet in front, then open. Six times, on the dappu ---",
+        {
+          "ms": 980,
+          "pose": {
+            "right_shoulder_x": 58,
+            "right_shoulder_y": 22,
+            "right_elbow": 78,
+            "left_shoulder_x": 58,
+            "left_shoulder_y": 22,
+            "left_elbow": 78,
+            "head_tilt": 44
+          }
+        },
+        {
+          "ms": 980,
+          "pose": {
+            "right_shoulder_x": 18,
+            "right_shoulder_y": 52,
+            "right_elbow": 24,
+            "left_shoulder_x": 18,
+            "left_shoulder_y": 52,
+            "left_elbow": 24,
+            "head_tilt": 38
+          }
+        },
+        {
+          "ms": 980,
+          "pose": {
+            "right_shoulder_x": 58,
+            "right_shoulder_y": 22,
+            "right_elbow": 78,
+            "left_shoulder_x": 58,
+            "left_shoulder_y": 22,
+            "left_elbow": 78,
+            "head_tilt": 44
+          }
+        },
+        {
+          "ms": 980,
+          "pose": {
+            "right_shoulder_x": 18,
+            "right_shoulder_y": 52,
+            "right_elbow": 24,
+            "left_shoulder_x": 18,
+            "left_shoulder_y": 52,
+            "left_elbow": 24,
+            "head_tilt": 38
+          }
+        },
+        {
+          "ms": 980,
+          "pose": {
+            "right_shoulder_x": 58,
+            "right_shoulder_y": 22,
+            "right_elbow": 78,
+            "left_shoulder_x": 58,
+            "left_shoulder_y": 22,
+            "left_elbow": 78,
+            "head_tilt": 44
+          }
+        },
+        {
+          "ms": 980,
+          "pose": {
+            "right_shoulder_x": 18,
+            "right_shoulder_y": 52,
+            "right_elbow": 24,
+            "left_shoulder_x": 18,
+            "left_shoulder_y": 52,
+            "left_elbow": 24,
+            "head_tilt": 38
+          }
+        },
+        "--- B. the hit at ~7.4 s — loudest onset in the clip. Both arms up, light punches it ---",
+        {
+          "ms": 490,
+          "pose": {
+            "right_shoulder_x": 12,
+            "right_shoulder_y": 82,
+            "right_elbow": 18,
+            "left_shoulder_x": 12,
+            "left_shoulder_y": 82,
+            "left_elbow": 18,
+            "head_tilt": 24
+          },
+          "light": false
+        },
+        {
+          "ms": 490,
+          "pose": {
+            "head_tilt": 20
+          },
+          "light": true
+        },
+        {
+          "ms": 980,
+          "pose": {
+            "right_shoulder_x": 16,
+            "right_shoulder_y": 76,
+            "right_elbow": 24,
+            "left_shoulder_x": 16,
+            "left_shoulder_y": 76,
+            "left_elbow": 24,
+            "head_tilt": 26
+          }
+        },
+        "--- C. the hook, bars 5-6: arms arc over alternately — the circular folk movement ---",
+        {
+          "ms": 980,
+          "pose": {
+            "right_shoulder_x": 30,
+            "right_shoulder_y": 74,
+            "right_elbow": 30,
+            "left_shoulder_x": 22,
+            "left_shoulder_y": 16,
+            "left_elbow": 46,
+            "head_tilt": 34
+          }
+        },
+        {
+          "ms": 980,
+          "pose": {
+            "right_shoulder_x": 22,
+            "right_shoulder_y": 16,
+            "right_elbow": 46,
+            "left_shoulder_x": 30,
+            "left_shoulder_y": 74,
+            "left_elbow": 30,
+            "head_tilt": 34
+          }
+        },
+        {
+          "ms": 980,
+          "pose": {
+            "right_shoulder_x": 30,
+            "right_shoulder_y": 74,
+            "right_elbow": 30,
+            "left_shoulder_x": 22,
+            "left_shoulder_y": 16,
+            "left_elbow": 46,
+            "head_tilt": 30
+          }
+        },
+        {
+          "ms": 980,
+          "pose": {
+            "right_shoulder_x": 22,
+            "right_shoulder_y": 16,
+            "right_elbow": 46,
+            "left_shoulder_x": 30,
+            "left_shoulder_y": 74,
+            "left_elbow": 30,
+            "head_tilt": 30
+          }
+        },
+        "--- D. the track empties out after ~13 s — wind down, eyes doing the looking ---",
+        {
+          "ms": 1960,
+          "pose": {
+            "right_shoulder_x": 16,
+            "right_shoulder_y": 38,
+            "right_elbow": 44,
+            "left_shoulder_x": 10,
+            "left_shoulder_y": 14,
+            "left_elbow": 26,
+            "head_tilt": 46
+          },
+          "eyes": {
+            "look": -75,
+            "speed": 40
+          }
+        },
+        {
+          "ms": 1960,
+          "pose": {
+            "right_shoulder_x": 10,
+            "right_shoulder_y": 14,
+            "right_elbow": 26,
+            "left_shoulder_x": 16,
+            "left_shoulder_y": 38,
+            "left_elbow": 44,
+            "head_tilt": 52
+          },
+          "eyes": {
+            "look": 75
+          }
+        },
+        {
+          "ms": 1960,
+          "pose": {
+            "right_shoulder_x": 12,
+            "right_shoulder_y": 24,
+            "right_elbow": 34,
+            "left_shoulder_x": 12,
+            "left_shoulder_y": 24,
+            "left_elbow": 34,
+            "head_tilt": 42
+          },
+          "eyes": {
+            "look": 0
+          }
+        },
+        {
+          "ms": 1470,
+          "pose": {
+            "right_shoulder_x": 0,
+            "right_shoulder_y": 0,
+            "right_elbow": 0,
+            "left_shoulder_x": 0,
+            "left_shoulder_y": 0,
+            "left_elbow": 0,
+            "head_tilt": 46
+          }
+        },
+        "--- out ---",
+        {
+          "ms": 490,
+          "pose": {
+            "head_tilt": 50
+          },
+          "eyes": {
+            "look": 0,
+            "speed": 50,
+            "blink": true,
+            "auto": true,
+            "fx": "none"
+          }
+        }
+      ]
+    },
+    {
+      "id": "radhimaa",
+      "label": "Radhimaa",
+      "bpm": 136,
+      "audio": {
+        "file": "audio/radhimaa.mp3",
+        "start": 0,
+        "end": 16.7
+      },
+      "description": "Radhimaa at 136 BPM, sharp and staccato: hand-to-chest hook with a point, a diagonal see-saw with one arm straight overhead and the other tucked at the hip, both arms up with the elbows popping in on the drops, hands on hips with the head cocking side to side, and a rigid forward-punch final pose.",
+      "utterances": [
+        "radhimaa",
+        "radhima",
+        "sai abhyankkar radhimaa",
+        "radhimaa dance"
+      ],
+      "steps": [
+        "--- 1. HOOK 0-3.6s · left hand to chest, right extended ---",
+        {
+          "ms": 1764,
+          "pose": {
+            "right_shoulder_x": 55,
+            "right_shoulder_y": 30,
+            "right_elbow": 16,
+            "left_shoulder_x": 50,
+            "left_shoulder_y": 20,
+            "left_elbow": 78,
+            "head_tilt": 42
+          },
+          "light": true,
+          "eyes": {
+            "look": 0,
+            "speed": 55,
+            "auto": false,
+            "fx": "dj",
+            "bpm": 136
+          }
+        },
+        "the point",
+        {
+          "ms": 882,
+          "pose": {
+            "right_shoulder_x": 74,
+            "right_shoulder_y": 26,
+            "right_elbow": 2,
+            "left_shoulder_x": 50,
+            "left_shoulder_y": 20,
+            "left_elbow": 78,
+            "head_tilt": 34
+          }
+        },
+        {
+          "ms": 882,
+          "pose": {
+            "right_shoulder_x": 55,
+            "right_shoulder_y": 30,
+            "right_elbow": 16,
+            "left_shoulder_x": 50,
+            "left_shoulder_y": 20,
+            "left_elbow": 78,
+            "head_tilt": 46
+          }
+        },
+        "--- 2. DIAGONAL SEE-SAW 3.6-7.1s · one arm straight overhead, the other tucked low at the hip ---",
+        {
+          "ms": 882,
+          "pose": {
+            "right_shoulder_x": 6,
+            "right_shoulder_y": 86,
+            "right_elbow": 10,
+            "left_shoulder_x": 40,
+            "left_shoulder_y": 8,
+            "left_elbow": 70,
+            "head_tilt": 36
+          }
+        },
+        {
+          "ms": 882,
+          "pose": {
+            "right_shoulder_x": 40,
+            "right_shoulder_y": 8,
+            "right_elbow": 70,
+            "left_shoulder_x": 6,
+            "left_shoulder_y": 86,
+            "left_elbow": 10,
+            "head_tilt": 54
+          }
+        },
+        {
+          "ms": 882,
+          "pose": {
+            "right_shoulder_x": 6,
+            "right_shoulder_y": 90,
+            "right_elbow": 6,
+            "left_shoulder_x": 40,
+            "left_shoulder_y": 8,
+            "left_elbow": 70,
+            "head_tilt": 34
+          }
+        },
+        {
+          "ms": 882,
+          "pose": {
+            "right_shoulder_x": 40,
+            "right_shoulder_y": 8,
+            "right_elbow": 70,
+            "left_shoulder_x": 6,
+            "left_shoulder_y": 90,
+            "left_elbow": 6,
+            "head_tilt": 52
+          }
+        },
+        "--- 3. CHORUS 7.1-10.6s · both arms straight up, elbows POP in on the drops ---",
+        {
+          "ms": 1323,
+          "pose": {
+            "right_shoulder_x": 14,
+            "right_shoulder_y": 84,
+            "right_elbow": 0,
+            "left_shoulder_x": 14,
+            "left_shoulder_y": 84,
+            "left_elbow": 0,
+            "head_tilt": 26
+          }
+        },
+        "pop",
+        {
+          "ms": 441,
+          "pose": {
+            "right_elbow": 74,
+            "left_elbow": 74,
+            "head_tilt": 38
+          }
+        },
+        {
+          "ms": 882,
+          "pose": {
+            "right_shoulder_x": 12,
+            "right_shoulder_y": 88,
+            "right_elbow": 0,
+            "left_shoulder_x": 12,
+            "left_shoulder_y": 88,
+            "left_elbow": 0,
+            "head_tilt": 24
+          }
+        },
+        "pop, on the loudest onset",
+        {
+          "ms": 441,
+          "pose": {
+            "right_elbow": 74,
+            "left_elbow": 74,
+            "head_tilt": 36
+          },
+          "light": false
+        },
+        {
+          "ms": 441,
+          "pose": {
+            "right_elbow": 4,
+            "left_elbow": 4,
+            "head_tilt": 22
+          },
+          "light": true
+        },
+        "--- 4. HANDS ON HIPS 10.6s · elbows folded low and back, head cocked via the eyes ---",
+        {
+          "ms": 882,
+          "pose": {
+            "right_shoulder_x": 20,
+            "right_shoulder_y": 4,
+            "right_elbow": 66,
+            "left_shoulder_x": 20,
+            "left_shoulder_y": 4,
+            "left_elbow": 66,
+            "head_tilt": 40
+          },
+          "eyes": {
+            "look": -70,
+            "speed": 50
+          }
+        },
+        {
+          "ms": 441,
+          "pose": {
+            "head_tilt": 48
+          },
+          "eyes": {
+            "look": 70
+          }
+        },
+        {
+          "ms": 441,
+          "pose": {
+            "head_tilt": 40
+          },
+          "eyes": {
+            "look": -70
+          }
+        },
+        {
+          "ms": 882,
+          "pose": {
+            "head_tilt": 46
+          },
+          "eyes": {
+            "look": 0
+          }
+        },
+        "--- FINAL · right punches straight forward, left stays on the hip, rigid ---",
+        {
+          "ms": 1764,
+          "pose": {
+            "right_shoulder_x": 90,
+            "right_shoulder_y": 12,
+            "right_elbow": 0,
+            "left_shoulder_x": 20,
+            "left_shoulder_y": 4,
+            "left_elbow": 66,
+            "head_tilt": 30
+          }
+        },
+        "held",
+        {
+          "ms": 882,
+          "pose": {}
+        },
+        "--- out ---",
+        {
+          "ms": 882,
+          "pose": {
+            "right_shoulder_x": 0,
+            "right_shoulder_y": 0,
+            "right_elbow": 0,
+            "left_shoulder_x": 0,
+            "left_shoulder_y": 0,
+            "left_elbow": 0,
+            "head_tilt": 46
+          },
+          "eyes": {
+            "look": 0,
+            "speed": 50,
+            "blink": true,
+            "auto": true,
+            "fx": "none"
+          }
+        }
+      ]
+    },
+    {
+      "id": "monica",
+      "label": "Monica",
+      "bpm": 140,
+      "audio": {
+        "file": "audio/monica.mp3",
+        "start": 0,
+        "end": 16.8
+      },
+      "description": "Monica from Coolie at 140 BPM, in the character of Sandy Master's hook: a sultry open looking away, then forearms rolling over each other in front of the chest on the chant with the shoulders forward, a flick straight out to the sides, a fast shoulder shimmy, and a slow drag to each side with the eyes leading.",
+      "utterances": [
+        "monica",
+        "monica song",
+        "coolie monica",
+        "anirudh monica",
+        "monica bellucci",
+        "bellucci magic"
+      ],
+      "steps": [
+        "--- open 0-3.5s · sultry: arms low and loose, head down, looking away ---",
+        {
+          "ms": 1712,
+          "pose": {
+            "right_shoulder_x": 30,
+            "right_shoulder_y": 20,
+            "right_elbow": 58,
+            "left_shoulder_x": 30,
+            "left_shoulder_y": 20,
+            "left_elbow": 58,
+            "head_tilt": 58
+          },
+          "light": false,
+          "eyes": {
+            "look": -60,
+            "lids": "open",
+            "speed": 35,
+            "auto": false,
+            "fx": "dj",
+            "bpm": 140
+          }
+        },
+        "the look up on the first hit, light on",
+        {
+          "ms": 1712,
+          "pose": {
+            "head_tilt": 38
+          },
+          "light": true,
+          "eyes": {
+            "look": 0,
+            "speed": 60
+          }
+        },
+        "--- ROLL 6.9s · forearms over each other in front of the chest: elbows alternate, shoulders forward ---",
+        {
+          "ms": 428,
+          "pose": {
+            "right_shoulder_x": 56,
+            "right_shoulder_y": 18,
+            "right_elbow": 84,
+            "left_shoulder_x": 56,
+            "left_shoulder_y": 18,
+            "left_elbow": 30,
+            "head_tilt": 40
+          }
+        },
+        {
+          "ms": 428,
+          "pose": {
+            "right_elbow": 30,
+            "left_elbow": 84
+          }
+        },
+        {
+          "ms": 428,
+          "pose": {
+            "right_elbow": 84,
+            "left_elbow": 30
+          }
+        },
+        {
+          "ms": 428,
+          "pose": {
+            "right_elbow": 30,
+            "left_elbow": 84
+          }
+        },
+        {
+          "ms": 428,
+          "pose": {
+            "right_elbow": 84,
+            "left_elbow": 30
+          }
+        },
+        {
+          "ms": 428,
+          "pose": {
+            "right_elbow": 30,
+            "left_elbow": 84
+          }
+        },
+        {
+          "ms": 428,
+          "pose": {
+            "right_elbow": 84,
+            "left_elbow": 30
+          }
+        },
+        {
+          "ms": 428,
+          "pose": {
+            "right_elbow": 30,
+            "left_elbow": 84
+          }
+        },
+        "--- FLICK · both arms snap straight out to the sides ---",
+        {
+          "ms": 856,
+          "pose": {
+            "right_shoulder_x": 16,
+            "right_shoulder_y": 62,
+            "right_elbow": 0,
+            "left_shoulder_x": 16,
+            "left_shoulder_y": 62,
+            "left_elbow": 0,
+            "head_tilt": 32
+          }
+        },
+        "--- ROLL again, on the chant ---",
+        {
+          "ms": 428,
+          "pose": {
+            "right_shoulder_x": 56,
+            "right_shoulder_y": 18,
+            "right_elbow": 84,
+            "left_shoulder_x": 56,
+            "left_shoulder_y": 18,
+            "left_elbow": 30,
+            "head_tilt": 40
+          }
+        },
+        {
+          "ms": 428,
+          "pose": {
+            "right_elbow": 30,
+            "left_elbow": 84
+          }
+        },
+        {
+          "ms": 428,
+          "pose": {
+            "right_elbow": 84,
+            "left_elbow": 30
+          }
+        },
+        {
+          "ms": 428,
+          "pose": {
+            "right_elbow": 30,
+            "left_elbow": 84
+          }
+        },
+        {
+          "ms": 428,
+          "pose": {
+            "right_elbow": 84,
+            "left_elbow": 30
+          }
+        },
+        {
+          "ms": 428,
+          "pose": {
+            "right_elbow": 30,
+            "left_elbow": 84
+          }
+        },
+        {
+          "ms": 428,
+          "pose": {
+            "right_elbow": 84,
+            "left_elbow": 30
+          }
+        },
+        {
+          "ms": 428,
+          "pose": {
+            "right_elbow": 30,
+            "left_elbow": 84
+          }
+        },
+        "FLICK",
+        {
+          "ms": 856,
+          "pose": {
+            "right_shoulder_x": 16,
+            "right_shoulder_y": 62,
+            "right_elbow": 0,
+            "left_shoulder_x": 16,
+            "left_shoulder_y": 62,
+            "left_elbow": 0,
+            "head_tilt": 32
+          }
+        },
+        "--- SHIMMY · shoulders alone, small and fast, arms held ---",
+        {
+          "ms": 428,
+          "pose": {
+            "right_shoulder_x": 10,
+            "right_shoulder_y": 30,
+            "right_elbow": 40,
+            "left_shoulder_x": 10,
+            "left_shoulder_y": 30,
+            "left_elbow": 40,
+            "head_tilt": 44
+          }
+        },
+        {
+          "ms": 428,
+          "pose": {
+            "right_shoulder_y": 40,
+            "left_shoulder_y": 22,
+            "head_tilt": 40
+          }
+        },
+        {
+          "ms": 428,
+          "pose": {
+            "right_shoulder_y": 22,
+            "left_shoulder_y": 40,
+            "head_tilt": 48
+          }
+        },
+        {
+          "ms": 428,
+          "pose": {
+            "right_shoulder_y": 40,
+            "left_shoulder_y": 22,
+            "head_tilt": 40
+          }
+        },
+        {
+          "ms": 428,
+          "pose": {
+            "right_shoulder_y": 22,
+            "left_shoulder_y": 40,
+            "head_tilt": 48
+          }
+        },
+        {
+          "ms": 428,
+          "pose": {
+            "right_shoulder_y": 40,
+            "left_shoulder_y": 22,
+            "head_tilt": 40
+          }
+        },
+        "--- DRAG · everything sweeps to one side, slow, eyes leading ---",
+        {
+          "ms": 1712,
+          "pose": {
+            "right_shoulder_x": 8,
+            "right_shoulder_y": 66,
+            "right_elbow": 10,
+            "left_shoulder_x": 34,
+            "left_shoulder_y": 10,
+            "left_elbow": 62,
+            "head_tilt": 36
+          },
+          "eyes": {
+            "look": 80,
+            "speed": 30
+          }
+        },
+        {
+          "ms": 1712,
+          "pose": {
+            "right_shoulder_x": 34,
+            "right_shoulder_y": 10,
+            "right_elbow": 62,
+            "left_shoulder_x": 8,
+            "left_shoulder_y": 66,
+            "left_elbow": 10,
+            "head_tilt": 36
+          },
+          "eyes": {
+            "look": -80
+          }
+        },
+        "--- out ---",
+        {
+          "ms": 856,
+          "pose": {
+            "right_shoulder_x": 0,
+            "right_shoulder_y": 0,
+            "right_elbow": 0,
+            "left_shoulder_x": 0,
+            "left_shoulder_y": 0,
+            "left_elbow": 0,
+            "head_tilt": 46
+          },
+          "eyes": {
+            "look": 0,
+            "speed": 50,
+            "blink": true,
+            "auto": true,
+            "fx": "none"
+          }
+        }
+      ]
+    },
+    {
+      "id": "pavazha_malli",
+      "label": "Pavazha Malli",
+      "bpm": 139,
+      "audio": {
+        "file": "audio/pavazha_malli.mp3",
+        "start": 0,
+        "end": 15.4
+      },
+      "description": "Pavazha Malli at 139 BPM, danced gracefully the way the saree-style reels do it, every arm move given four beats: a bloom with both hands rising folded to the face and opening outward like the jasmine the song is named for, a classical held pose with one arm straight forward and the other folded across the body then swapped, the bloom again higher, a sway to each side with the head following, and ",
+      "utterances": [
+        "pavazha malli",
+        "pavazhamalli",
+        "pavala malli",
+        "sai abhyankkar pavazha",
+        "shruti haasan song"
+      ],
+      "steps": [
+        "--- lead-in to the 1.42 s downbeat · hands low in front, nearly meeting ---",
+        {
+          "ms": 1420,
+          "pose": {
+            "right_shoulder_x": 52,
+            "right_shoulder_y": 12,
+            "right_elbow": 70,
+            "left_shoulder_x": 52,
+            "left_shoulder_y": 12,
+            "left_elbow": 70,
+            "head_tilt": 52
+          },
+          "light": true,
+          "eyes": {
+            "look": 0,
+            "speed": 25,
+            "blink": true,
+            "auto": false,
+            "fx": "dj",
+            "bpm": 139
+          }
+        },
+        "--- BLOOM · both hands rise to the face, folded together (pavazha malli = jasmine) ---",
+        {
+          "ms": 1720,
+          "pose": {
+            "right_shoulder_x": 72,
+            "right_shoulder_y": 42,
+            "right_elbow": 88,
+            "left_shoulder_x": 72,
+            "left_shoulder_y": 42,
+            "left_elbow": 88,
+            "head_tilt": 36
+          },
+          "eyes": {
+            "look": 0,
+            "speed": 25
+          }
+        },
+        "…and open outward and up, slowly",
+        {
+          "ms": 1720,
+          "pose": {
+            "right_shoulder_x": 44,
+            "right_shoulder_y": 64,
+            "right_elbow": 26,
+            "left_shoulder_x": 44,
+            "left_shoulder_y": 64,
+            "left_elbow": 26,
+            "head_tilt": 30
+          }
+        },
+        "--- MUDRA · right held straight forward, left folded across the body ---",
+        {
+          "ms": 1720,
+          "pose": {
+            "right_shoulder_x": 82,
+            "right_shoulder_y": 16,
+            "right_elbow": 4,
+            "left_shoulder_x": 44,
+            "left_shoulder_y": 6,
+            "left_elbow": 90,
+            "head_tilt": 42
+          },
+          "eyes": {
+            "look": 50,
+            "speed": 25
+          }
+        },
+        "swap, just as slowly",
+        {
+          "ms": 1720,
+          "pose": {
+            "right_shoulder_x": 44,
+            "right_shoulder_y": 6,
+            "right_elbow": 90,
+            "left_shoulder_x": 82,
+            "left_shoulder_y": 16,
+            "left_elbow": 4,
+            "head_tilt": 42
+          },
+          "eyes": {
+            "look": -50
+          }
+        },
+        "--- BLOOM again, higher ---",
+        {
+          "ms": 1720,
+          "pose": {
+            "right_shoulder_x": 74,
+            "right_shoulder_y": 48,
+            "right_elbow": 88,
+            "left_shoulder_x": 74,
+            "left_shoulder_y": 48,
+            "left_elbow": 88,
+            "head_tilt": 32
+          },
+          "eyes": {
+            "look": 0
+          }
+        },
+        "open, arms nearly overhead",
+        {
+          "ms": 1720,
+          "pose": {
+            "right_shoulder_x": 38,
+            "right_shoulder_y": 78,
+            "right_elbow": 20,
+            "left_shoulder_x": 38,
+            "left_shoulder_y": 78,
+            "left_elbow": 20,
+            "head_tilt": 26
+          }
+        },
+        "--- SWAY · to the right, head following ---",
+        {
+          "ms": 860,
+          "pose": {
+            "right_shoulder_x": 24,
+            "right_shoulder_y": 66,
+            "right_elbow": 8,
+            "left_shoulder_x": 8,
+            "left_shoulder_y": 8,
+            "left_elbow": 30,
+            "head_tilt": 38
+          },
+          "eyes": {
+            "look": 75,
+            "speed": 25
+          }
+        },
+        "to the left",
+        {
+          "ms": 860,
+          "pose": {
+            "right_shoulder_x": 8,
+            "right_shoulder_y": 8,
+            "right_elbow": 30,
+            "left_shoulder_x": 24,
+            "left_shoulder_y": 66,
+            "left_elbow": 8,
+            "head_tilt": 38
+          },
+          "eyes": {
+            "look": -75
+          }
+        },
+        "--- CLOSE · hands meet low again ---",
+        {
+          "ms": 860,
+          "pose": {
+            "right_shoulder_x": 52,
+            "right_shoulder_y": 12,
+            "right_elbow": 70,
+            "left_shoulder_x": 52,
+            "left_shoulder_y": 12,
+            "left_elbow": 70,
+            "head_tilt": 50
+          },
+          "eyes": {
+            "look": 0
+          }
+        },
+        "--- out ---",
+        {
+          "ms": 860,
+          "pose": {
+            "right_shoulder_x": 0,
+            "right_shoulder_y": 0,
+            "right_elbow": 0,
+            "left_shoulder_x": 0,
+            "left_shoulder_y": 0,
+            "left_elbow": 0,
+            "head_tilt": 48
+          },
+          "eyes": {
+            "look": 0,
+            "speed": 40,
+            "blink": true,
+            "auto": true,
+            "fx": "none"
+          }
+        }
+      ]
+    }
+  ]
+}

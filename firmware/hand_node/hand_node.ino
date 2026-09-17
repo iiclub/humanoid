@@ -3,10 +3,11 @@
  *
  *  One sketch, two boards. Set ROLE below before flashing each one.
  *
- *    ROLE_RIGHT_HAND : shoulderX D1, shoulderY D2, elbow D3, wristZ D4, gripper D5
- *                      + aux motor on D7/D8 (H-bridge, reversible)
- *    ROLE_LEFT_HAND  : shoulderX D1, shoulderY D2, elbow D3, wristZ D4, gripper D7,
- *                      head pan D5, head tilt D6
+ *    ROLE_RIGHT_HAND : shoulderX D1, shoulderY D2, elbow D5, gripper D6, wristZ D7
+ *                      + torso lift motor on D3/D4
+ *    ROLE_LEFT_HAND  : shoulderX D0, shoulderY D2, elbow D5, gripper D6, wristZ D7,
+ *                      head tilt D4  (up/down only — there is no head pan)
+ *                      + work light on D3, switched on/off (no PWM)
  *
  *  Lifecycle
  *    1. No WiFi credentials stored  ->  soft-AP + captive portal at 192.168.4.1
@@ -17,7 +18,9 @@
  *
  *  UDP command format (port 4210), ASCII, one datagram per message:
  *      S|seq=42|0=90|2=140      set channel 0 -> 90 deg, channel 2 -> 140 deg
- *      M|seq=42|dir=1|pwm=800   aux motor: dir +1 clockwise, -1 anticlockwise, 0 stop
+ *      M|seq=42|dir=1           torso lift: dir +1 up, -1 down, 0 stop
+ *      L|seq=42|on=1            work light on (0 off), fades over LIGHT_FADE_MS
+ *      L|seq=42|run=1           replay the power-on light sequence
  *      P|seq=42                 ping (replies with A|...)
  *      SRV|ip=192.168.1.20|port=4211|http=3000     server announcing itself
  *
@@ -43,37 +46,65 @@
 
 #define ROLE ROLE_RIGHT_HAND        // <<<<<< CHANGE THIS FOR THE SECOND BOARD
 
-#define FW_VERSION "1.1.0"
+#define FW_VERSION "1.2.0"
 
 // ---------------------------------------------------------------- pin map ---
 
 #if ROLE == ROLE_RIGHT_HAND
   const char* NODE_ID   = "right_hand";
   const char* AP_SSID   = "HUMANOID-RIGHT";
-  const uint8_t SERVO_PIN[]   = {  D1,  D2,  D3,  D4,  D5 };
+  const uint8_t SERVO_PIN[]   = {  D1,  D2,  D5,  D7,  D6 };
   //                            shX  shY  elb  wrZ  grip
   const uint8_t SERVO_HOME[]  = {   0,   0,   0, 180,   0 };
   const uint8_t SERVO_SPEED[] = { 120, 120, 150, 180, 200 };   // deg/second
 
-  /* Aux motor: one reversible DC motor on an L298N. D7 -> IN1, D8 -> IN2,
-     driven HIGH/LOW only — no PWM, so the motor runs at full supply voltage.
+  /* Torso lift: one reversible DC motor on an L298N that raises and lowers the
+     whole upper body. Direction pins are driven HIGH/LOW only — no PWM — so the
+     motor runs at whatever the driver's supply gives it.
 
-     D8 is GPIO15, a strapping pin: it MUST read low at power-up or the ESP8266
-     will not boot. We park both inputs low first thing in setup(), before the
-     servos and the radio, but the L298N must not pull D8 up on its own. If the
-     board boot-loops with the driver attached, add a 10k pull-down on D8, or
-     move IN2 to another free pin here and in config/setup.json. */
-  #define HAS_AUX_MOTOR 1
-  const uint8_t MOTOR_CW_PIN  = D7;     // L298N IN1 — HIGH turns it clockwise
-  const uint8_t MOTOR_CCW_PIN = D8;     // L298N IN2 — HIGH turns it anticlockwise
-  const bool    MOTOR_INVERT  = false;  // flip if "up" turns the wrong way
+         up     IN1 HIGH  IN2 LOW   EN HIGH
+         down   IN1 LOW   IN2 HIGH  EN HIGH
+         stop   IN1 LOW   IN2 LOW   EN LOW
+
+     D3 (GPIO0) and D4 (GPIO2) are both strapping pins with pull-ups, so they
+     read HIGH for the ~50 ms between power-up and setup(). That is safe here:
+     on an L298N *both* inputs high drives both outputs to the same rail, which
+     brakes the motor rather than turning it. A single input high would spin, so
+     do not split this pair across a pin that boots low.
+
+     There is no position feedback anywhere in this loop, so travel is bounded
+     by time alone — see MOTOR_MAX_RUN_MS below. */
+  #define HAS_TORSO_MOTOR 1
+  const uint8_t MOTOR_UP_PIN   = D3;    // L298N IN1 — HIGH lifts the torso
+  const uint8_t MOTOR_DOWN_PIN = D4;    // L298N IN2 — HIGH lowers it
+  const bool    MOTOR_INVERT   = false; // flip if "up" drives the wrong way
+
+  /* Bridge enable. Set to 0 to leave the L298N's ENA jumper fitted instead —
+     direction alone then decides everything, and the stop case relies on both
+     inputs being driven low rather than on the enable dropping. D0 is GPIO16:
+     no PWM and no interrupt, but a perfectly good digital output, which is all
+     an enable line needs. */
+  #define MOTOR_HAS_EN 1
+  const uint8_t MOTOR_EN_PIN   = D0;    // L298N ENA
 #else
   const char* NODE_ID   = "left_hand";
   const char* AP_SSID   = "HUMANOID-LEFT";
-  const uint8_t SERVO_PIN[]   = {  D1,  D2,  D3,  D4,  D7,  D5,  D6 };
-  //                            shX  shY  elb  wrZ grip  pan tilt
-  const uint8_t SERVO_HOME[]  = { 180, 180, 180,   0,   0, 180, 180 };
-  const uint8_t SERVO_SPEED[] = { 120, 120, 150, 180, 200, 100, 100 };
+  const uint8_t SERVO_PIN[]   = {  D0,  D2,  D5,  D7,  D6,  D4 };
+  //                            shX  shY  elb  wrZ grip tilt
+  const uint8_t SERVO_HOME[]  = { 180, 180, 180,   0,   0, 180 };
+  const uint8_t SERVO_SPEED[] = { 120, 120, 150, 180, 200, 100 };
+
+  /* Work light, switched rather than dimmed: this board drives it as a plain
+     digital output, so the brightness ramps collapse to on/off and only the
+     three power-on blinks survive as motion. D3 is GPIO0, a strapping pin with
+     a pull-up — it reads HIGH until lightSetup() runs, so expect a brief flash
+     at power-up before the blink sequence starts. Nothing may hold D3 *low* at
+     boot or the board drops into flash mode instead of running. */
+  #define HAS_LIGHT 1
+  const uint8_t LIGHT_PIN = D3;
+  /* 1 = LED or MOSFET on a PWM-capable pin: the ramps are real fades.
+     0 = relay or plain switched output: no PWM, so a relay never chatters. */
+  #define LIGHT_PWM 0
 #endif
 
 const uint8_t SERVO_COUNT = sizeof(SERVO_PIN) / sizeof(SERVO_PIN[0]);
@@ -93,8 +124,34 @@ const uint32_t REGISTER_REFRESH_MS     = 30000;
 const uint16_t SERVO_PULSE_MIN = 500;      // microseconds
 const uint16_t SERVO_PULSE_MAX = 2400;
 
-#ifdef HAS_AUX_MOTOR
-const uint32_t MOTOR_FAILSAFE_MS = 600;    // no command -> stop, same rule as the base
+#ifdef HAS_TORSO_MOTOR
+/* Two independent time limits, both 4 s, and whichever bites first wins:
+
+     FAILSAFE  nothing heard from the laptop for this long -> stop.
+               Covers a closed tab, a dropped packet, a dead WiFi link.
+     MAX_RUN   one continuous run in one direction may not exceed this, even
+               with a healthy stream of commands arriving. This is the one that
+               protects the mechanism: there are no limit switches, so a held
+               button must not be able to drive the torso into its end stop.
+
+   After MAX_RUN trips the direction is latched out — repeating the same command
+   will not restart it. Asking for stop, or for the other direction, clears it. */
+const uint32_t MOTOR_FAILSAFE_MS = 4000;
+const uint32_t MOTOR_MAX_RUN_MS  = 4000;
+
+/* Coast time inserted when the direction reverses, so the bridge is never
+   switched across a turning armature. See motorApply(). */
+const uint16_t MOTOR_REVERSE_GAP_MS = 40;
+#endif
+
+#ifdef HAS_LIGHT
+const uint16_t LIGHT_PWM_MAX      = 1023;  // analogWrite range
+const uint16_t LIGHT_PWM_HZ       = 1000;
+const uint8_t  LIGHT_BOOT_BLINKS  = 3;     // three blinks announce a fresh boot…
+const uint16_t LIGHT_BLINK_ON_MS  = 140;
+const uint16_t LIGHT_BLINK_OFF_MS = 180;
+const uint16_t LIGHT_BOOT_FADE_MS = 2500;  // …then a slow ramp up to full
+const uint16_t LIGHT_FADE_MS      = 600;   // ramp used by the on/off buttons
 #endif
 
 // ------------------------------------------------------------- stored cfg ---
@@ -125,9 +182,25 @@ Servo servos[SERVO_COUNT];
 float   servoCur[SERVO_COUNT];
 uint8_t servoTarget[SERVO_COUNT];
 
-#ifdef HAS_AUX_MOTOR
-int      motorDir = 0;           // +1 clockwise, -1 anticlockwise, 0 stopped
+#ifdef HAS_TORSO_MOTOR
+int      motorDir = 0;           // +1 up, -1 down, 0 stopped
+int      motorLatchDir = 0;      // direction the run cap shut down; blocked until asked otherwise
 uint32_t lastMotorCmd = 0;
+uint32_t motorRunStarted = 0;
+#endif
+
+#ifdef HAS_LIGHT
+enum LightPhase { LIGHT_IDLE, LIGHT_BLINK, LIGHT_RAMP };
+LightPhase lightPhase = LIGHT_IDLE;
+bool     lightOn = false;        // what was last asked for, not the instantaneous duty
+uint16_t lightLevel = 0;         // current duty, 0 .. LIGHT_PWM_MAX
+uint16_t lightFrom = 0;          // ramp endpoints
+uint16_t lightTo = 0;
+uint32_t lightRampStart = 0;
+uint32_t lightRampMs = 0;
+uint8_t  lightBlinksLeft = 0;
+bool     lightBlinkLit = false;
+uint32_t lightBlinkAt = 0;
 #endif
 
 uint32_t lastServoStep = 0;
@@ -214,52 +287,202 @@ void servoCommand(uint8_t channel, int angle) {
   servoTarget[channel] = (uint8_t)angle;
 }
 
-// ============================================================== aux motor ===
-#ifdef HAS_AUX_MOTOR
+// ============================================================ torso motor ===
+#ifdef HAS_TORSO_MOTOR
 
-/* Plain L298N direction pattern — no PWM, the motor runs at whatever the
-   driver's supply gives it:
+/* The two direction inputs are never HIGH together, so the bridge cannot shoot
+   through. Order matters at the edges: enable goes low *before* the direction
+   pins change on a stop, and *after* they are set on a start, so the driver is
+   never enabled while its inputs are mid-flight. */
+/* Writes the enable line, or compiles away entirely when the ENA jumper is
+   doing the job instead. */
+static inline void motorEnable(bool on) {
+#if MOTOR_HAS_EN
+  digitalWrite(MOTOR_EN_PIN, on ? HIGH : LOW);
+#else
+  (void)on;
+#endif
+}
 
-       clockwise      IN1 HIGH   IN2 LOW
-       anticlockwise  IN1 LOW    IN2 HIGH
-       stop           IN1 LOW    IN2 LOW
-
-   The two inputs are never HIGH together, so the bridge cannot shoot through.
-   (If you are using the L298N's ENA jumper, leave it on — enable stays high and
-   direction alone decides everything.) */
 void motorApply() {
+  static int applied = 0;                   // what the pins are actually doing
   int dir = MOTOR_INVERT ? -motorDir : motorDir;
-  digitalWrite(MOTOR_CW_PIN,  dir > 0 ? HIGH : LOW);
-  digitalWrite(MOTOR_CCW_PIN, dir < 0 ? HIGH : LOW);
+
+  if (dir == 0) {
+    motorEnable(false);                     // bridge off first…
+    digitalWrite(MOTOR_UP_PIN, LOW);        // …then both terminals parked low
+    digitalWrite(MOTOR_DOWN_PIN, LOW);
+    applied = 0;
+    return;
+  }
+
+  /* Crossing straight from one direction to the other would plug the motor:
+     the bridge would still be enabled as the inputs swap, and the back-EMF of
+     a turning armature adds to the supply instead of opposing it. Drop the
+     enable and let it coast for a moment first.
+
+     This is the one place the sketch blocks, and it does so deliberately —
+     MOTOR_REVERSE_GAP_MS is short enough to be invisible in the servo loop, and
+     a reversal only happens when somebody presses a button (or lets go of the
+     up button, which starts the auto-lower). */
+  if (applied != 0 && applied != dir) {
+    motorEnable(false);
+    delay(MOTOR_REVERSE_GAP_MS);
+  }
+
+  digitalWrite(MOTOR_UP_PIN,   dir > 0 ? HIGH : LOW);
+  digitalWrite(MOTOR_DOWN_PIN, dir < 0 ? HIGH : LOW);
+  motorEnable(true);                        // direction settled, now enable
+  applied = dir;
 }
 
 void motorSetup() {
-  pinMode(MOTOR_CW_PIN, OUTPUT);
-  pinMode(MOTOR_CCW_PIN, OUTPUT);
-  digitalWrite(MOTOR_CW_PIN, LOW);      // park GPIO15 low before anything else
-  digitalWrite(MOTOR_CCW_PIN, LOW);
+  pinMode(MOTOR_UP_PIN, OUTPUT);
+  pinMode(MOTOR_DOWN_PIN, OUTPUT);
+#if MOTOR_HAS_EN
+  pinMode(MOTOR_EN_PIN, OUTPUT);
+#endif
   motorDir = 0;
+  motorLatchDir = 0;
+  motorApply();                             // everything low before anything else runs
 }
 
-/** dir: +1 clockwise, -1 anticlockwise, 0 stop. */
+/** dir: +1 up, -1 down, 0 stop. */
 void motorSet(int dir) {
-  motorDir = dir > 0 ? 1 : (dir < 0 ? -1 : 0);
+  int d = dir > 0 ? 1 : (dir < 0 ? -1 : 0);
   lastMotorCmd = millis();
+
+  // Still holding the button that just hit the run cap? Stay stopped.
+  if (d != 0 && d == motorLatchDir) return;
+  motorLatchDir = 0;                        // anything else releases the latch
+
+  if (d == motorDir) return;
+  motorDir = d;
+  if (d != 0) motorRunStarted = millis();
   motorApply();
 }
 
-/* Parks the motor if the control link goes quiet — a closed browser tab, a
-   dropped packet or a dead WiFi link must not leave it spinning. */
+/* Both time limits live here, so they apply in every mode — including AP mode,
+   where nothing is listening for commands at all. */
 void motorUpdate() {
   if (motorDir == 0) return;
-  if (millis() - lastMotorCmd > MOTOR_FAILSAFE_MS) {
+  uint32_t now = millis();
+
+  if (now - lastMotorCmd > MOTOR_FAILSAFE_MS) {
     motorDir = 0;
     motorApply();
-    logf("[MOT] failsafe — no command for %lu ms, stopped", (unsigned long)MOTOR_FAILSAFE_MS);
+    logf("[TORSO] failsafe — no command for %lu ms, stopped",
+         (unsigned long)MOTOR_FAILSAFE_MS);
+    return;
+  }
+
+  if (now - motorRunStarted > MOTOR_MAX_RUN_MS) {
+    motorLatchDir = motorDir;               // do not restart on the next keep-alive
+    motorDir = 0;
+    motorApply();
+    logf("[TORSO] run cap — %lu ms in one direction, stopped",
+         (unsigned long)MOTOR_MAX_RUN_MS);
   }
 }
 
-#endif  // HAS_AUX_MOTOR
+#endif  // HAS_TORSO_MOTOR
+
+// =================================================================== light ===
+#ifdef HAS_LIGHT
+
+/* Everything here is driven from loop() rather than delay(), because the light
+   comes up while the radio is still trying to join the WiFi — the blinks are
+   the only sign of life the robot has during those first few seconds. */
+
+void lightWrite(uint16_t duty) {
+  lightLevel = duty;
+#if LIGHT_PWM
+  analogWrite(LIGHT_PIN, duty);
+#else
+  digitalWrite(LIGHT_PIN, duty > (LIGHT_PWM_MAX / 2) ? HIGH : LOW);
+#endif
+}
+
+void lightSetup() {
+  pinMode(LIGHT_PIN, OUTPUT);
+  digitalWrite(LIGHT_PIN, LOW);             // GPIO15 must read low at power-up
+#if LIGHT_PWM
+  analogWriteRange(LIGHT_PWM_MAX);
+  analogWriteFreq(LIGHT_PWM_HZ);
+#endif
+  lightLevel = 0;
+  lightOn = false;
+  lightPhase = LIGHT_IDLE;
+}
+
+void lightRampTo(uint16_t target, uint32_t ms) {
+#if !LIGHT_PWM
+  (void)ms;                                 // a switched output cannot fade…
+  lightWrite(target);                       // …so it just arrives
+  lightPhase = LIGHT_IDLE;
+  return;
+#else
+  lightFrom = lightLevel;
+  lightTo = target;
+  lightRampStart = millis();
+  lightRampMs = ms ? ms : 1;
+  lightPhase = LIGHT_RAMP;
+#endif
+}
+
+/** Power-on greeting: three blinks, then a slow ramp up to full. */
+void lightStartSequence() {
+  lightWrite(0);
+  lightOn = true;                           // the sequence ends with it lit
+  lightBlinksLeft = LIGHT_BOOT_BLINKS;
+  lightBlinkLit = false;
+  lightBlinkAt = millis();
+  lightPhase = LIGHT_BLINK;
+}
+
+void lightSet(bool on) {
+  lightOn = on;
+  lightRampTo(on ? LIGHT_PWM_MAX : 0, LIGHT_FADE_MS);
+}
+
+void lightUpdate() {
+  uint32_t now = millis();
+
+  switch (lightPhase) {
+    case LIGHT_BLINK: {
+      uint32_t due = lightBlinkLit ? LIGHT_BLINK_ON_MS : LIGHT_BLINK_OFF_MS;
+      if (now - lightBlinkAt < due) return;
+      lightBlinkAt = now;
+
+      if (lightBlinkLit) {                  // an ON pulse just ended
+        lightWrite(0);
+        lightBlinkLit = false;
+        if (--lightBlinksLeft == 0) lightRampTo(LIGHT_PWM_MAX, LIGHT_BOOT_FADE_MS);
+      } else {
+        lightWrite(LIGHT_PWM_MAX);
+        lightBlinkLit = true;
+      }
+      break;
+    }
+
+    case LIGHT_RAMP: {
+      uint32_t dt = now - lightRampStart;
+      if (dt >= lightRampMs) {
+        lightWrite(lightTo);
+        lightPhase = LIGHT_IDLE;
+        break;
+      }
+      int32_t span = (int32_t)lightTo - (int32_t)lightFrom;
+      lightWrite((uint16_t)((int32_t)lightFrom + (span * (int32_t)dt) / (int32_t)lightRampMs));
+      break;
+    }
+
+    default:
+      break;
+  }
+}
+
+#endif  // HAS_LIGHT
 
 // ============================================================ access point ===
 
@@ -420,8 +643,11 @@ bool startSTA() {
   while (WiFi.status() != WL_CONNECTED && millis() - started < WIFI_CONNECT_TIMEOUT_MS) {
     delay(250);
     servoUpdate();
-#ifdef HAS_AUX_MOTOR
+#ifdef HAS_TORSO_MOTOR
     motorUpdate();
+#endif
+#ifdef HAS_LIGHT
+    lightUpdate();      // the boot blinks run while we are still joining
 #endif
     Serial.print('.');
   }
@@ -519,7 +745,7 @@ void handleServoPacket(char* payload, uint32_t seq) {
   sendToServer(ack);
 }
 
-#ifdef HAS_AUX_MOTOR
+#ifdef HAS_TORSO_MOTOR
 void handleMotorPacket(char* payload, uint32_t seq) {
   int dir = 0;
   bool sawDir = false;
@@ -537,6 +763,30 @@ void handleMotorPacket(char* payload, uint32_t seq) {
   }
 
   motorSet(sawDir ? dir : 0);      // a malformed packet stops, never spins
+  sendToServer("A|id=" + String(NODE_ID) + "|seq=" + String(seq));
+}
+#endif
+
+#ifdef HAS_LIGHT
+void handleLightPacket(char* payload, uint32_t seq) {
+  int on = -1;
+  bool run = false;
+
+  char* token = strtok(payload, "|");
+  while (token) {
+    char* eq = strchr(token, '=');
+    if (eq) {
+      *eq = 0;
+      int v = atoi(eq + 1);
+      if (!strcmp(token, "on")) on = v ? 1 : 0;
+      else if (!strcmp(token, "run") && v) run = true;
+    }
+    token = strtok(NULL, "|");
+  }
+
+  if (run) { lightStartSequence(); logf("[LIGHT] start-up sequence"); }
+  else if (on >= 0) { lightSet(on == 1); logf("[LIGHT] %s", on ? "on" : "off"); }
+
   sendToServer("A|id=" + String(NODE_ID) + "|seq=" + String(seq));
 }
 #endif
@@ -593,8 +843,11 @@ void pollUdp() {
   }
 
   if (!strcmp(type, "S")) handleServoPacket(rest, seq);
-#ifdef HAS_AUX_MOTOR
+#ifdef HAS_TORSO_MOTOR
   else if (!strcmp(type, "M")) handleMotorPacket(rest, seq);
+#endif
+#ifdef HAS_LIGHT
+  else if (!strcmp(type, "L")) handleLightPacket(rest, seq);
 #endif
   else if (!strcmp(type, "SRV")) handleAnnounce(rest);
   else if (!strcmp(type, "P")) sendToServer("A|id=" + String(NODE_ID) + "|seq=" + String(seq));
@@ -608,12 +861,23 @@ void setup() {
   Serial.println();
   logf("=== humanoid %s  fw " FW_VERSION " ===", NODE_ID);
 
-#ifdef HAS_AUX_MOTOR
-  motorSetup();          // first: gets GPIO15 (D8) low before anything else runs
+#ifdef HAS_TORSO_MOTOR
+  motorSetup();          // first: no chance of the bridge waking up enabled
+#endif
+#ifdef HAS_LIGHT
+  lightSetup();          // second: gets GPIO15 (D8) low before anything else runs
 #endif
 
   loadConfig();
   servoSetup();
+
+#ifdef HAS_LIGHT
+  /* Servos are parked and the radio has not started yet — this is the moment
+     the robot "wakes up", so this is where the light announces it: three
+     blinks, then a slow ramp to full. Non-blocking; lightUpdate() carries it
+     the rest of the way while the WiFi join is still running. */
+  lightStartSequence();
+#endif
 
   if (hasCredentials()) {
     if (!startSTA()) startAP();
@@ -625,8 +889,11 @@ void setup() {
 
 void loop() {
   servoUpdate();
-#ifdef HAS_AUX_MOTOR
+#ifdef HAS_TORSO_MOTOR
   motorUpdate();         // runs in every mode, so the failsafe still bites in AP mode
+#endif
+#ifdef HAS_LIGHT
+  lightUpdate();
 #endif
 
   if (mode == MODE_AP) {

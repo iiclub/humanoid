@@ -23,10 +23,29 @@
 
   <div class="top-actions">
     <span class="rec-badge" id="recBadge" hidden></span>
+    <button class="btn mic" id="btnMic" title="Hold to speak a command, or click to start and click again to stop">
+      <span class="mic-icon">🎤</span>
+      <span class="mic-label" id="micLabel">Speak</span>
+    </button>
     <button class="btn ghost" id="btnHome" title="Send every joint back to its declared initial angle">⌂ Home</button>
+    <button class="btn ghost" id="btnFullscreen" title="Full screen — hides the phone's address bar">⛶</button>
     <button class="btn danger" id="btnEstop">■ E-STOP</button>
   </div>
 </header>
+
+<!-- Voice bar. Hidden until the mic is first used, so it does not take up room
+     on a tablet until it has something to say. -->
+<div class="voice-bar" id="voiceBar" hidden>
+  <div class="voice-line">
+    <span class="voice-tag" id="voiceStage">idle</span>
+    <span class="voice-heard" id="voiceHeard">—</span>
+  </div>
+  <div class="voice-line">
+    <span class="voice-match" id="voiceMatch"></span>
+    <span class="voice-via" id="voiceVia"></span>
+    <button class="btn ghost tiny" id="btnVoiceClose" title="Hide">✕</button>
+  </div>
+</div>
 
 <main class="layout">
 
@@ -52,9 +71,11 @@
   <section class="panel control-panel">
     <nav class="tabs" id="tabs">
       <button class="tab active" data-tab="arms">Arms</button>
+      <button class="tab" data-tab="actions">Actions</button>
+      <button class="tab" data-tab="dance">Dance</button>
       <button class="tab" data-tab="head">Head</button>
       <button class="tab" data-tab="drive">Drive</button>
-      <button class="tab" data-tab="motor">Motor</button>
+      <button class="tab" data-tab="motor">Torso &amp; Light</button>
       <button class="tab" data-tab="record">Record</button>
       <button class="tab" data-tab="nodes">Nodes</button>
       <button class="tab" data-tab="setup">Setup</button>
@@ -72,10 +93,164 @@
         <div id="armControls"></div>
       </div>
 
+      <!-- ACTIONS -->
+      <div class="tab-page" data-page="actions">
+        <p class="hint">
+          Named gestures from <code>config/actions.json</code>. These are exactly what the
+          <b>🎤 Speak</b> button chooses between — the language model picks an action from this
+          list, it never invents joint angles, so anything the robot does by voice it can also
+          do from here.
+        </p>
+
+        <div class="action-status" id="actionStatus" hidden>
+          <span class="action-dot"></span>
+          <span id="actionStatusText">idle</span>
+          <button class="btn ghost tiny" id="btnActionStop">■ Stop</button>
+        </div>
+
+        <div class="action-grid" id="actionGrid"></div>
+
+        <h3 class="section-h">Type a command <span class="section-sub">— the same path as the mic, minus the microphone</span></h3>
+        <div class="row">
+          <input type="text" id="voiceText" placeholder="e.g. give me a handshake" autocomplete="off">
+          <button class="btn" id="btnVoiceText">Send</button>
+        </div>
+        <p class="hint">
+          Useful for testing the intent matching without speaking, and for working out
+          which phrasings the model handles.
+        </p>
+
+        <h3 class="section-h">Voice services <span class="section-sub">— both local</span></h3>
+        <div class="svc-list" id="voiceHealth">
+          <div class="svc"><span class="svc-dot"></span><span>checking…</span></div>
+        </div>
+        <p class="hint" id="voiceHealthHint">
+          Speech-to-text runs on <code>:8123</code> (<code>npm run stt</code>) and the language model on
+          <code>:11434</code> (Ollama). Nothing is sent off this machine.
+        </p>
+      </div>
+
+      <!-- DANCE -->
+      <div class="tab-page dance-page" data-page="dance" id="dancePage">
+
+        <div class="dance-head">
+          <div>
+            <h3 class="dance-title">FA9LA · Rehman Dakait entry</h3>
+            <span class="dance-sub" id="danceSub">choreography from <code>config/dances.json</code></span>
+          </div>
+          <button class="btn ghost tiny" id="btnDanceFull" title="Full screen — the one to use on a phone">⛶ Full screen</button>
+        </div>
+
+        <p class="hint">
+          Press a routine — it plays its bit of the track and dances to it. <b>E-STOP</b> stops both.
+          Long-press a routine to remove it. <b>🎤 Live</b> makes the phone at <code>/face</code>
+          listen to the room and dance to whatever is actually playing.
+        </p>
+
+        <div class="action-status" id="danceStatus" hidden>
+          <span class="action-dot"></span>
+          <span id="danceStatusText">idle</span>
+          <button class="btn ghost tiny" id="btnDanceStop">■ Stop</button>
+        </div>
+
+        <div class="action-grid dance-grid" id="danceGrid"></div>
+
+        <div class="btn-row">
+          <button class="btn live" id="btnLive" title="The phone at /face listens to the room and dances to whatever is playing">🎤 Live</button>
+          <button class="btn" id="btnImport" title="An .mp3 to choreograph, or a .json routine">⬇ Import</button>
+          <input type="file" id="importFile" accept=".mp3,.json,audio/mpeg,application/json" hidden>
+          <button class="btn" id="btnMusic">🔊 Music on</button>
+          <button class="btn" id="btnDjOn">🎛 DJ eyes</button>
+          <button class="btn" id="btnDjOff">Normal eyes</button>
+          <button class="btn ghost" id="btnDjBeat">◉ Tap tempo</button>
+          <button class="btn ghost" id="btnDanceReload">↻ Reload</button>
+        </div>
+
+        <!-- Create-from-mp3. Opens when an .mp3 is imported; the audio is
+             decoded and analysed in this browser (js/choreo.js), and the
+             routine plus the file go to the server. -->
+        <section class="create-panel" id="createPanel" hidden>
+          <div class="create-head">
+            <h3>Create a dance from <span id="createSource">…</span></h3>
+            <button class="btn ghost tiny" id="btnCreateCancel">✕</button>
+          </div>
+
+          <div class="row">
+            <label for="createName">Name</label>
+            <input type="text" id="createName" maxlength="40" placeholder="what the button will say" autocomplete="off">
+          </div>
+
+          <!-- The wave is a control: tap to listen from there, drag the yellow
+               edges to trim. A white playhead shows what is playing. -->
+          <canvas id="wave" class="wave"></canvas>
+
+          <div class="btn-row trim-transport">
+            <button class="btn ghost" id="btnTrimPlay">▶ Play</button>
+            <button class="btn ghost" id="btnTrimStop">■</button>
+            <span class="trim-now" id="trimNow">‖ 0:00.0</span>
+            <button class="btn ghost" id="btnMarkStart" title="Set the start to where the playhead is now">⟵ Start here</button>
+            <button class="btn ghost" id="btnMarkEnd" title="Set the end to where the playhead is now">End here ⟶</button>
+          </div>
+
+          <div class="row">
+            <label for="trimStart">Start</label>
+            <input type="range" id="trimStart" min="0" max="60" step="0.1" value="0">
+            <output id="trimStartOut">0.0 s</output>
+          </div>
+          <div class="row">
+            <label for="trimEnd">End</label>
+            <input type="range" id="trimEnd" min="0" max="60" step="0.1" value="60">
+            <output id="trimEndOut">60.0 s</output>
+          </div>
+
+          <div class="btn-row">
+            <span class="trim-len" id="trimLen">—</span>
+            <button class="btn create" id="btnCreate">✨ Create</button>
+          </div>
+          <div class="readout" id="createResult">—</div>
+          <p class="hint">
+            The steps come from the audio: the beat grid from where the drums land, the size of each
+            move from how loud the bar is against the rest, the height of arms and head from its pitch.
+            Every dwell is a whole number of beats and no arm move is shorter than two.
+          </p>
+        </section>
+
+        <div class="row">
+          <label for="djBpm">Beat</label>
+          <input type="range" id="djBpm" min="40" max="200" step="1" value="102">
+          <output id="djBpmOut">102 BPM</output>
+        </div>
+        <div class="readout" id="danceReadout">—</div>
+
+        <details class="help">
+          <summary>Importing a .json by hand</summary>
+          <p>
+            One routine object, or <code>{ "dances": [ … ] }</code> — the shape in
+            <code>config/dances.json</code>. Arms are three motors each — shoulder_x, shoulder_y,
+            elbow; wrists and grippers are never used by a dance and are dropped on import. Joints are
+            travel percentages: <b>shoulder_y</b> 0 down / 65 straight out / 100 overhead ·
+            <b>shoulder_x</b> 0 at the side / 100 forward · <b>elbow</b> 0 straight / 100 folded ·
+            <b>head_tilt</b> 0 chin up / 50 level / 100 chin down.
+            <code>audio: { file, start, end }</code> names the seconds it dances to; leave
+            <code>file</code> out to use the built-in beat. A bare string in <code>steps</code> is a
+            comment. Imported routines land on this page and in the mic's vocabulary at once.
+          </p>
+        </details>
+      </div>
+
       <!-- HEAD -->
       <div class="tab-page" data-page="head">
-        <p class="hint">Drag the pad — X pans, Y tilts. Both servos live on the left-hand NodeMCU (D5 / D6).</p>
-        <div class="pad" id="headPad"><div class="pad-dot" id="headDot"></div><div class="pad-cross"></div></div>
+        <p class="hint" id="headPins">Head tilts up and down only — one servo on the left-hand NodeMCU (D4). There is no pan servo.</p>
+        <div class="row">
+          <label for="headTilt">Tilt (up / down)</label>
+          <input type="range" id="headTilt" min="0" max="100" step="1" value="50">
+          <output id="headTiltOut">50 %</output>
+        </div>
+        <div class="btn-row">
+          <button class="btn" data-head-tilt="0">▲ Full up</button>
+          <button class="btn" data-head-tilt="50">● Level</button>
+          <button class="btn" data-head-tilt="100">▼ Full down</button>
+        </div>
 
         <!-- Eyes. These drive the animated face on the phone (/face), not a
              servo — the phone mirrors this state over the same WebSocket. -->
@@ -109,9 +284,20 @@
         </p>
         <div class="readout" id="eyeReadout">centre · lids open · idle wander</div>
 
-        <h3 class="section-h">Wake sequence <span class="section-sub">— head D6 + eyes, together</span></h3>
+        <h3 class="section-h">Voice agent <span class="section-sub">— the talking head on the phone</span></h3>
+        <div class="btn-row">
+          <button class="btn agent" id="btnAgent">🗣 Voice agent: off</button>
+        </div>
         <p class="hint">
-          Walks the head servo on <b>D6</b> from <b>0° to 70°</b>, and as it passes the halfway
+          Off by default. When on, the phone at <code>/face</code> listens for speech and answers
+          through Ollama — tap the eyes to start it talking. When off, a tap only wakes the screen
+          and goes fullscreen; the microphone stays closed. <b>🎤 Live</b> dance takes the mic over
+          either way and hands it back afterwards.
+        </p>
+
+        <h3 class="section-h">Wake sequence <span class="section-sub">— head D4 + eyes, together</span></h3>
+        <p class="hint">
+          Walks the head servo on <b>D4</b> from <b>0° to 70°</b>, and as it passes the halfway
           point (<b>35°</b>) the eyes start opening — the two overlap, which is what makes it read
           as waking up rather than two separate movements. The lids are given exactly the time the
           head has left, so both arrive together however long you set it to. Runs on the server,
@@ -150,28 +336,42 @@
         <div class="readout" id="driveReadout">L 0 · R 0</div>
       </div>
 
-      <!-- MOTOR -->
+      <!-- TORSO + LIGHT -->
       <div class="tab-page" data-page="motor">
-        <p class="hint" id="motorPins">Aux motor on the right-hand NodeMCU.</p>
+        <p class="hint" id="motorPins">Torso lift on the right-hand NodeMCU.</p>
         <div class="motor-pad">
           <button class="btn motor" data-motor="up">
             <span class="m-arrow">▲</span>
-            <span class="m-name">Up</span>
-            <span class="m-sub">clockwise</span>
+            <span class="m-name">Torso up</span>
+            <span class="m-sub">hold to lift</span>
           </button>
           <button class="btn motor" data-motor="down">
             <span class="m-arrow">▼</span>
-            <span class="m-name">Down</span>
-            <span class="m-sub">anticlockwise</span>
+            <span class="m-name">Torso down</span>
+            <span class="m-sub">hold to lower</span>
           </button>
         </div>
         <p class="hint">
-          Hold a button to turn, release to stop — the same hold-to-run rule as the drive pad.
-          It is an L298N driven by direction alone (no PWM), so the motor runs at full speed or
-          not at all. The firmware also stops it by itself if commands go quiet, and
-          <b>E-STOP</b> blocks it entirely.
+          <b>Torso up</b> lifts while you hold it — and lowers on its own the moment you let go.
+          <b>Torso down</b> is the plain manual version: it lowers while held and stops on release.
+          There are no limit switches, so every run is capped at <b id="motorCapText">4 s</b>: hold past
+          that and the motor parks itself until you ask for something else. The firmware enforces the
+          same cap independently, and stops too if commands go quiet — a closed tab or dead WiFi cannot
+          leave it running. <b>E-STOP</b> blocks it entirely.
         </p>
         <div class="readout" id="motorReadout">stopped</div>
+
+        <h3 class="section-h">Light <span class="section-sub" id="lightPins">— right-hand NodeMCU</span></h3>
+        <div class="btn-row">
+          <button class="btn" data-light="on">☀ Light on</button>
+          <button class="btn" data-light="off">☾ Light off</button>
+          <button class="btn ghost" data-light="sequence">↻ Replay start-up</button>
+        </div>
+        <p class="hint" id="lightHint">
+          The board runs the start-up sequence by itself on every power-up.
+        </p>
+        <p class="hint"><b>Replay start-up</b> runs the whole greeting again without rebooting.</p>
+        <div class="readout" id="lightReadout">on</div>
       </div>
 
       <!-- RECORD -->

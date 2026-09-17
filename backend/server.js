@@ -15,6 +15,8 @@ const { Recorder } = require('./src/recorder');
 const { buildApi } = require('./src/api');
 const { buildFaceApi } = require('./src/face');
 const { Sequencer } = require('./src/sequence');
+const { ActionPlayer } = require('./src/actions');
+const { Voice } = require('./src/voice');
 
 const setup = setupStore.load();
 const state = new RobotState(setup);
@@ -47,10 +49,62 @@ const recorder = new Recorder({
 
 const sequencer = new Sequencer({ controller, state, log: (l, m) => log(l, m) });
 
+const actions = new ActionPlayer({
+  controller,
+  state,
+  onStatus: (status) => broadcast({ type: 'action', action: status }),
+  log: (l, m) => log(l, m),
+});
+
+const voice = new Voice({ actions, log: (l, m) => log(l, m) });
+
+/* Live dance: the phone at /face listens to the room and streams poses in.
+   The server holds only the on/off flag — the beat tracking is on the phone,
+   which is the device with a microphone pointed at the music. Kept here so a
+   phone that reconnects mid-dance knows to start listening again, and so the
+   Dance tab's button reflects the truth rather than its own last click. */
+let liveDance = false;
+
+/* The talking head — speech recognition + Ollama on the phone at /face. OFF
+   by default: a robot that starts listening the moment its screen is tapped
+   is a robot that answers the room while somebody is trying to set it up. The
+   Head tab switches it on; the phone follows the flag, and a phone that
+   reconnects mid-session gets the current value in its hello. */
+let voiceAgent = false;
+
+function setVoiceAgent(on) {
+  const next = !!on;
+  if (next === voiceAgent) return voiceAgent;
+  voiceAgent = next;
+  broadcast({ type: 'voiceagent', on: voiceAgent });
+  log('info', `voice agent ${voiceAgent ? 'on — phone is listening for speech' : 'off'}`);
+  return voiceAgent;
+}
+
+function setLiveDance(on) {
+  const next = !!on;
+  if (next === liveDance) return liveDance;
+  liveDance = next;
+  // A scripted routine and a live one would fight over the same shoulder.
+  if (liveDance) actions.stop();
+  broadcast({ type: 'live', on: liveDance });
+  log('info', `live dance ${liveDance ? 'started — phone is listening' : 'stopped'}`);
+  return liveDance;
+}
+
 /* The face route posts whole JPEG frames as base64, which blows past the
    512 kb that is plenty for every robot command. Mount it first, with its own
    parser, so the small limit still guards the control API. */
 app.use('/api/face', express.json({ limit: '12mb' }), buildFaceApi({ log: (l, m) => log(l, m) }));
+
+/* Voice audio arrives as a raw MediaRecorder blob, not JSON. Mounted ahead of
+   the JSON parser with its own raw parser, so a few seconds of Opus does not
+   have to be base64'd into a JSON string first. */
+app.use('/api/voice/transcribe', express.raw({ type: '*/*', limit: '25mb' }));
+
+/* Same deal for a dance's music: the browser POSTs the imported file as-is
+   rather than base64'ing a few MB of MP3 into a JSON string. */
+app.use('/api/dances/:id/audio', express.raw({ type: '*/*', limit: '30mb' }));
 
 app.use(express.json({ limit: '512kb' }));
 app.use((req, _res, next) => {
@@ -58,7 +112,7 @@ app.use((req, _res, next) => {
   next();
 });
 
-app.use('/api', buildApi({ setup, state, link, controller, recorder, sequencer, broadcast }));
+app.use('/api', buildApi({ setup, state, link, controller, recorder, sequencer, actions, voice, broadcast, setVoiceAgent: (on) => setVoiceAgent(on) }));
 
 const FRONTEND_DIR = path.resolve(__dirname, '..', 'frontend');
 const CERT_DIR = path.resolve(__dirname, '..', 'certs');
@@ -84,7 +138,19 @@ app.get('/health', (_req, res) => res.json({ ok: true, uptime: process.uptime(),
 
 function onWsConnection(ws) {
   clients.add(ws);
-  ws.send(JSON.stringify({ type: 'hello', setup, state: state.snapshot(), record: recorder.status(), server: { ip: localIPv4() } }));
+  ws.send(JSON.stringify({
+    type: 'hello',
+    setup,
+    state: state.snapshot(),
+    record: recorder.status(),
+    actions: actions.catalogue,
+    action: actions.status(),
+    audioFile: actions.audioFile,
+    audioStamp: actions.audioStamp,
+    live: liveDance,
+    voiceAgent,
+    server: { ip: localIPv4() },
+  }));
 
   ws.on('message', (buf) => {
     let msg;
@@ -103,13 +169,36 @@ function onWsConnection(ws) {
           if (msg.dir != null) controller.setMotor(msg.dir);
           else controller.motorCommand(msg.cmd || 'stop');
           break;
+        case 'light':
+          if (msg.on != null) controller.setLight(msg.on);
+          else controller.lightCommand(msg.cmd || 'off');
+          break;
         case 'eyes': controller.setEyes(msg.eyes || msg); break;
         case 'sequence':
           if (msg.action === 'stop') sequencer.stop();
           else sequencer.wake(msg.options || {});
           break;
+        case 'live': setLiveDance(msg.on ?? true); break;
+        case 'voiceagent': setVoiceAgent(msg.on ?? true); break;
+        case 'action':
+          /* Starting a routine takes the robot back off the live driver. */
+          if (msg.id && liveDance) setLiveDance(false);
+          if (msg.command === 'stop') actions.stop();
+          else if (msg.command === 'reload') {
+            actions.reload();
+            broadcast({
+              type: 'actions',
+              actions: actions.catalogue,
+              action: actions.status(),
+              audioFile: actions.audioFile,
+              audioStamp: actions.audioStamp,
+            });
+            log('info', `catalogue reloaded — ${actions.catalogue.length} entries`);
+          } else actions.run(msg.id);
+          break;
         case 'estop':
-          if (msg.on ?? true) sequencer.stop('halted by E-STOP');
+          if (msg.on ?? true) { sequencer.stop('halted by E-STOP'); setLiveDance(false); }
+          actions.stop();
           controller.emergencyStop(msg.on ?? true);
           break;
         case 'record':

@@ -66,6 +66,9 @@ function startNode(id, port) {
     } else if (type === 'M') {
       setMotor(Number(fields.stop) ? 0 : Number(fields.dir) || 0);
       ack(fields.seq);
+    } else if (type === 'L') {
+      setLight(fields);
+      ack(fields.seq);
     } else if (type === 'D') {
       say(fields.stop ? 'drive  STOP' : `drive  L=${fields.l} R=${fields.r}`);
       ack(fields.seq);
@@ -76,33 +79,76 @@ function startNode(id, port) {
     }
   });
 
-  /* Aux motor, if this node owns one. Mirrors the firmware: one direction pin
-     HIGH and the other LOW, both LOW when stopped, plus the same "no command
-     inside failsafeMs -> stop" rule, so hold-to-run can be tested for real. */
+  /* Torso lift, if this node owns one. Mirrors the firmware: one direction pin
+     HIGH and the other LOW with the enable up, everything LOW when stopped,
+     plus both time limits — "no command inside failsafeMs" and the hard
+     maxRunMs cap on one continuous run — so hold-to-run and the auto-lower can
+     be tested for real. */
   const motor = setup.motor && setup.motor.node === id ? setup.motor : null;
+  const EN = (v) => (motor && motor.pinEn ? `  ${motor.pinEn}=${v}` : '');
   let motorDir = 0;
   let motorFailsafe = null;
+  let motorCap = null;
+  let motorLatchDir = 0;
+
+  function motorStop(why) {
+    if (motorFailsafe) clearTimeout(motorFailsafe);
+    if (motorCap) clearTimeout(motorCap);
+    motorFailsafe = motorCap = null;
+    motorDir = 0;
+    say(`torso  STOP       ${motor.pinUp}=LOW  ${motor.pinDown}=LOW${EN('LOW')}${why ? `   (${why})` : ''}`);
+  }
 
   function setMotor(dir) {
     if (!motor) return;
+
+    // Still holding the button whose run we just capped? Stay stopped.
+    if (dir !== 0 && dir === motorLatchDir) return;
+    motorLatchDir = 0;
+
+    if (dir === motorDir) {                       // keep-alive: refresh the failsafe only
+      if (motorFailsafe) motorFailsafe.refresh();
+      return;
+    }
+
+    if (dir === 0) { motorStop(); return; }
+
     if (motorFailsafe) clearTimeout(motorFailsafe);
-    motorFailsafe = null;
-
-    if (dir !== motorDir) {
-      say(dir === 0
-        ? `motor  STOP       ${motor.pinCw}=LOW  ${motor.pinCcw}=LOW`
-        : dir > 0
-          ? `motor  CLOCKWISE ${motor.pinCw}=HIGH ${motor.pinCcw}=LOW`
-          : `motor  ANTICLOCK ${motor.pinCw}=LOW  ${motor.pinCcw}=HIGH`);
-    }
+    if (motorCap) clearTimeout(motorCap);
     motorDir = dir;
+    say(dir > 0
+      ? `torso  UP         ${motor.pinUp}=HIGH ${motor.pinDown}=LOW${EN('HIGH')}`
+      : `torso  DOWN       ${motor.pinUp}=LOW  ${motor.pinDown}=HIGH${EN('HIGH')}`);
 
-    if (dir !== 0) {
-      motorFailsafe = setTimeout(() => {
-        motorDir = 0;
-        say(`motor  FAILSAFE   no command for ${motor.failsafeMs || 600} ms — stopped`);
-      }, motor.failsafeMs || 600);
-    }
+    const failsafeMs = motor.failsafeMs || 4000;
+    const maxRunMs = motor.maxRunMs || 4000;
+    motorFailsafe = setTimeout(() => motorStop(`failsafe — nothing heard for ${failsafeMs} ms`), failsafeMs);
+    motorCap = setTimeout(() => {
+      motorLatchDir = motorDir;
+      motorStop(`run cap — ${maxRunMs} ms in one direction`);
+    }, maxRunMs);
+  }
+
+  /* Work light. The firmware animates the ramps itself, so the simulator only
+     reports the destination — plus the power-on sequence, which it runs at
+     start-up exactly like a freshly booted board would. */
+  const light = setup.light && setup.light.node === id ? setup.light : null;
+
+  // A switched output has no brightness, so the ramps collapse to a level change.
+  const dimmable = light && light.pwm !== false;
+
+  function setLight(fields) {
+    if (!light) return;
+    if (Number(fields.run)) return lightSequence();
+    const on = Number(fields.on) === 1;
+    say(`light  ${on ? 'ON ' : 'OFF'}        ${light.pin}=${on ? 'HIGH' : 'LOW '}` +
+        (dimmable ? `  ramps to ${on ? '100%' : '0%'} over ${light.fadeMs || 600} ms` : '  (switched)'));
+  }
+
+  function lightSequence() {
+    if (!light) return;
+    say(`light  SEQUENCE   ${light.pin} blinks ${light.bootBlinks ?? 3}× then ` +
+        (dimmable ? `ramps to 100% over ${light.bootFadeMs || 2500} ms` : 'stays on'));
   }
 
   function ack(seq) {
@@ -116,6 +162,7 @@ function startNode(id, port) {
 
   sock.bind(port, () => {
     say(`listening on udp ${port}  (${cfg.label})`);
+    lightSequence();          // a real board runs this the moment it powers up
     register();
     setInterval(() => send(`B|id=${id}|ip=127.0.0.1|rssi=-42|up=${Math.round(process.uptime() * 1000)}|fw=sim`), 2000);
   });

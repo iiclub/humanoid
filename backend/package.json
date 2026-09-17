@@ -9,7 +9,10 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "sim": "node ../tools/sim-node.js",
-    "cert": "bash ../tools/make-cert.sh"
+    "cert": "bash ../tools/make-cert.sh",
+    "beat": "node ../tools/make-beat.js",
+    "check": "node ../tools/check-dances.js",
+    "stt": "python3 ../tools/stt-server.py"
   },
   "dependencies": {
     "express": "^4.19.2",

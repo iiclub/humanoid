@@ -3,7 +3,7 @@
 /**
  * Scripted motions that span more than one subsystem.
  *
- * The wake sequence walks the head servo on D6 (head_tilt, channel 6 of the
+ * The wake sequence walks the head servo on D4 (head_tilt, channel 5 of the
  * left-hand board) from 0 to 70 degrees, and part-way through that travel it
  * starts the eyes opening. The overlap is the whole point: the lids begin to
  * lift while the head is still moving, which reads as waking up. Two separate

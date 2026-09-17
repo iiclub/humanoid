@@ -24,7 +24,7 @@
       "label": "Left Hand + Head NodeMCU",
       "apSsid": "HUMANOID-LEFT",
       "apPassword": "12345678",
-      "servoCount": 7,
+      "servoCount": 6,
       "ip": null
     },
     "drive": {
@@ -75,7 +75,7 @@
       "pin": "D2",
       "min": 0,
       "max": 180,
-      "initial": 0,
+      "initial": 180,
       "direction": 1,
       "trim": 0,
       "speed": 120,
@@ -90,7 +90,7 @@
       "group": "right_arm",
       "node": "right_hand",
       "channel": 2,
-      "pin": "D3",
+      "pin": "D5",
       "min": 0,
       "max": 180,
       "initial": 0,
@@ -108,7 +108,7 @@
       "group": "right_arm",
       "node": "right_hand",
       "channel": 3,
-      "pin": "D4",
+      "pin": "D7",
       "min": 0,
       "max": 180,
       "initial": 180,
@@ -126,7 +126,7 @@
       "group": "right_arm",
       "node": "right_hand",
       "channel": 4,
-      "pin": "D5",
+      "pin": "D6",
       "min": 0,
       "max": 180,
       "initial": 0,
@@ -144,7 +144,7 @@
       "group": "left_arm",
       "node": "left_hand",
       "channel": 0,
-      "pin": "D1",
+      "pin": "D0",
       "min": 0,
       "max": 180,
       "initial": 0,
@@ -180,11 +180,11 @@
       "group": "left_arm",
       "node": "left_hand",
       "channel": 2,
-      "pin": "D3",
+      "pin": "D5",
       "min": 0,
       "max": 180,
       "initial": 0,
-      "direction": -1,
+      "direction": 1,
       "trim": 0,
       "speed": 150,
       "vizRange": [
@@ -198,7 +198,7 @@
       "group": "left_arm",
       "node": "left_hand",
       "channel": 3,
-      "pin": "D4",
+      "pin": "D7",
       "min": 0,
       "max": 180,
       "initial": 180,
@@ -216,7 +216,7 @@
       "group": "left_arm",
       "node": "left_hand",
       "channel": 4,
-      "pin": "D7",
+      "pin": "D6",
       "min": 0,
       "max": 180,
       "initial": 0,
@@ -229,30 +229,12 @@
       ]
     },
     {
-      "id": "head_pan",
-      "label": "Head Pan (X)",
+      "id": "head_tilt",
+      "label": "Head Tilt (up/down)",
       "group": "head",
       "node": "left_hand",
       "channel": 5,
-      "pin": "D5",
-      "min": 0,
-      "max": 180,
-      "initial": 180,
-      "direction": 1,
-      "trim": 0,
-      "speed": 100,
-      "vizRange": [
-        -70,
-        70
-      ]
-    },
-    {
-      "id": "head_tilt",
-      "label": "Head Tilt (Y)",
-      "group": "head",
-      "node": "left_hand",
-      "channel": 6,
-      "pin": "D6",
+      "pin": "D4",
       "min": 0,
       "max": 180,
       "initial": 180,
@@ -297,21 +279,47 @@
   },
   "_motor_fields": {
     "driver": "L298N, direction pins only — HIGH/LOW, no PWM, so there is no speed control",
-    "node": "which NodeMCU drives it — its firmware must define the same two pins",
-    "pinCw": "L298N IN1: HIGH turns clockwise (IN2 low). The 'up' button.",
-    "pinCcw": "L298N IN2: HIGH turns anticlockwise (IN1 low). The 'down' button.",
-    "invert": "true swaps clockwise and anticlockwise without rewiring",
-    "failsafeMs": "firmware stops the motor if no command arrives inside this window"
+    "node": "which NodeMCU drives it — its firmware must define the same pins",
+    "pinUp": "L298N IN1: HIGH raises the torso (IN2 low). The 'up' button.",
+    "pinDown": "L298N IN2: HIGH lowers it (IN1 low). The 'down' button.",
+    "pinEn": "L298N ENA: the bridge enable. HIGH only while the motor is meant to turn.",
+    "invert": "true swaps up and down without rewiring",
+    "failsafeMs": "firmware stops the motor if no command arrives inside this window",
+    "maxRunMs": "hard cap on one continuous run in one direction, held button or not — there are no limit switches, so this is what protects the mechanism",
+    "autoLowerOnRelease": "letting go of the 'up' button drives back down on its own, for up to maxRunMs"
   },
   "motor": {
-    "id": "aux_motor",
-    "label": "Aux Motor (Right Hand)",
+    "id": "torso_lift",
+    "label": "Torso Lift (Right Hand)",
     "node": "right_hand",
     "driver": "l298n",
-    "pinCw": "D7",
-    "pinCcw": "D8",
+    "pinUp": "D3",
+    "pinDown": "D4",
+    "pinEn": "D0",
     "invert": false,
-    "failsafeMs": 600
+    "failsafeMs": 4000,
+    "maxRunMs": 4000,
+    "autoLowerOnRelease": true
+  },
+  "_light_fields": {
+    "node": "which NodeMCU drives it — its firmware must define the same pin",
+    "pin": "driven with PWM so the ramps are real fades; on D8/GPIO15 nothing may pull the pin high at boot",
+    "pwm": "false for a relay: the ramps collapse to plain on/off. Must match LIGHT_PWM in the firmware.",
+    "startOn": "the firmware runs its power-on sequence regardless; this is what the server assumes the light is doing afterwards",
+    "bootBlinks": "blinks on power-up before the slow ramp (firmware constant, repeated here so the UI can describe it)",
+    "bootFadeMs": "how long the power-on ramp to full takes",
+    "fadeMs": "ramp used by the on/off buttons"
+  },
+  "light": {
+    "id": "work_light",
+    "label": "Light (Left Hand)",
+    "node": "left_hand",
+    "pin": "D3",
+    "pwm": false,
+    "startOn": true,
+    "bootBlinks": 3,
+    "bootFadeMs": 2500,
+    "fadeMs": 600
   },
   "poses": {
     "home": {
@@ -325,7 +333,6 @@
       "left_elbow": 0,
       "left_wrist_z": 50,
       "left_gripper": 0,
-      "head_pan": 50,
       "head_tilt": 50
     },
     "wave": {
@@ -339,7 +346,6 @@
       "left_elbow": 0,
       "left_wrist_z": 50,
       "left_gripper": 0,
-      "head_pan": 50,
       "head_tilt": 55
     },
     "t_pose": {
@@ -353,7 +359,6 @@
       "left_elbow": 0,
       "left_wrist_z": 50,
       "left_gripper": 0,
-      "head_pan": 50,
       "head_tilt": 50
     },
     "reach_out": {
@@ -367,7 +372,6 @@
       "left_elbow": 10,
       "left_wrist_z": 50,
       "left_gripper": 100,
-      "head_pan": 50,
       "head_tilt": 40
     },
     "hands_up": {
@@ -381,7 +385,6 @@
       "left_elbow": 20,
       "left_wrist_z": 50,
       "left_gripper": 0,
-      "head_pan": 50,
       "head_tilt": 60
     }
   }

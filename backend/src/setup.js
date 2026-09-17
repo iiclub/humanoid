@@ -62,18 +62,37 @@ function validate(cfg) {
     if (!cfg.nodes[cfg.motor.node]) {
       throw new Error(`motor references unknown node "${cfg.motor.node}"`);
     }
-    if (!cfg.motor.pinCw || !cfg.motor.pinCcw) {
-      throw new Error('motor needs both "pinCw" and "pinCcw"');
+    if (!cfg.motor.pinUp || !cfg.motor.pinDown) {
+      throw new Error('motor needs both "pinUp" and "pinDown"');
     }
-    if (cfg.motor.pinCw === cfg.motor.pinCcw) {
-      throw new Error('motor "pinCw" and "pinCcw" must be different pins');
+    const motorPins = [cfg.motor.pinUp, cfg.motor.pinDown];
+    if (cfg.motor.pinEn) motorPins.push(cfg.motor.pinEn);
+    if (new Set(motorPins).size !== motorPins.length) {
+      throw new Error('motor "pinUp", "pinDown" and "pinEn" must all be different pins');
     }
     // A servo and the motor bridge cannot share a pin on the same board.
     const taken = cfg.joints.filter((j) => j.node === cfg.motor.node).map((j) => j.pin);
-    for (const pin of [cfg.motor.pinCw, cfg.motor.pinCcw]) {
+    for (const pin of motorPins) {
       if (taken.includes(pin)) {
         throw new Error(`motor pin ${pin} is already used by a servo on node "${cfg.motor.node}"`);
       }
+    }
+  }
+
+  if (cfg.light) {
+    if (!cfg.nodes[cfg.light.node]) {
+      throw new Error(`light references unknown node "${cfg.light.node}"`);
+    }
+    if (!cfg.light.pin) throw new Error('light needs a "pin"');
+
+    const clash = [
+      ...cfg.joints.filter((j) => j.node === cfg.light.node).map((j) => [j.pin, `servo "${j.id}"`]),
+      ...(cfg.motor && cfg.motor.node === cfg.light.node
+        ? [[cfg.motor.pinUp, 'the motor'], [cfg.motor.pinDown, 'the motor'], [cfg.motor.pinEn, 'the motor enable']]
+        : []),
+    ].find(([pin]) => pin === cfg.light.pin);
+    if (clash) {
+      throw new Error(`light pin ${cfg.light.pin} is already used by ${clash[1]} on node "${cfg.light.node}"`);
     }
   }
 }
